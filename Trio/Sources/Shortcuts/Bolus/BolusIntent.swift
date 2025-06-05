@@ -31,14 +31,22 @@ import Swinject
         default: true
     ) var confirmBeforeApplying: Bool
 
+    @Parameter(
+        title: LocalizedStringResource("External Insulin"),
+        description: LocalizedStringResource("Log as external insulin instead of sending to pump."),
+        default: false
+    ) var externalInsulin: Bool
+
     static var parameterSummary: some ParameterSummary {
         When(\.$confirmBeforeApplying, .equalTo, true, {
             Summary("Applying \(\.$bolusQuantity) U") {
                 \.$confirmBeforeApplying
+                \.$externalInsulin
             }
         }, otherwise: {
             Summary("Immediately applying \(\.$bolusQuantity) U") {
                 \.$confirmBeforeApplying
+                \.$externalInsulin
             }
         })
     }
@@ -60,7 +68,10 @@ import Swinject
                 )
             }
 
-            let finalBolusDisplay = try await BolusIntentRequest().bolus(amount)
+            let finalBolusDisplay = try await BolusIntentRequest().bolus(
+                amount,
+                externalInsulin: externalInsulin
+            )
             return .result(
                 dialog: IntentDialog(finalBolusDisplay)
             )
