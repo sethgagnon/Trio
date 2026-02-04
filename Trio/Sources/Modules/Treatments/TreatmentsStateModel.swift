@@ -19,6 +19,19 @@ extension Treatments {
         @ObservationIgnored @Injected() var glucoseStorage: GlucoseStorage!
         @ObservationIgnored @Injected() var determinationStorage: DeterminationStorage!
         @ObservationIgnored @Injected() var bolusCalculationManager: BolusCalculationManager!
+        @ObservationIgnored @Injected() var foodDatabaseService: FoodDatabaseService!
+
+        // MARK: - Barcode Scanner State
+
+        var showBarcodeScanner: Bool = false
+        var showScannedFoodResult: Bool = false
+        var scannedProduct: FoodProduct?
+        var isFetchingProduct: Bool = false
+        var foodFetchError: String?
+
+        // MARK: - Preset Search State
+
+        var presetSearchText: String = ""
 
         var lowGlucose: Decimal = 70
         var highGlucose: Decimal = 180
@@ -697,6 +710,86 @@ extension Treatments {
 
         func addToSummation() {
             summation.append(selection?.dish ?? "")
+        }
+
+        // MARK: - Barcode Scanner Methods
+
+        func handleBarcodeScanned(_ barcode: String) async {
+            await MainActor.run {
+                isFetchingProduct = true
+                foodFetchError = nil
+            }
+
+            do {
+                let product = try await foodDatabaseService.fetchProduct(barcode: barcode)
+                await MainActor.run {
+                    scannedProduct = product
+                    isFetchingProduct = false
+                    showScannedFoodResult = true
+                }
+            } catch {
+                await MainActor.run {
+                    isFetchingProduct = false
+                    foodFetchError = error.localizedDescription
+                }
+            }
+        }
+
+        func applyScannedNutrition(carbsValue: Decimal, fatValue: Decimal, proteinValue: Decimal) {
+            carbs += carbsValue
+            fat += fatValue
+            protein += proteinValue
+
+            // Add product name to note if empty
+            if note.isEmpty, let productName = scannedProduct?.name {
+                let truncatedName = String(productName.prefix(25))
+                note = truncatedName
+            }
+
+            // Reset scanner state
+            scannedProduct = nil
+            showScannedFoodResult = false
+        }
+
+        func saveScannedFoodAsPreset(_ product: FoodProduct) {
+            let preset = MealPresetStored(context: viewContext)
+            preset.dish = String(product.name.prefix(25))
+            preset.carbs = product.carbohydrates as NSDecimalNumber
+            preset.fat = product.fat as NSDecimalNumber
+            preset.protein = product.protein as NSDecimalNumber
+
+            do {
+                guard viewContext.hasChanges else { return }
+                try viewContext.save()
+            } catch {
+                debug(.default, "Failed to save meal preset from scan: \(error)")
+            }
+        }
+
+        // MARK: - Preset Search Methods
+
+        func applyPreset(_ preset: MealPresetStored) {
+            carbs += (preset.carbs as Decimal?) ?? 0
+            fat += (preset.fat as Decimal?) ?? 0
+            protein += (preset.protein as Decimal?) ?? 0
+
+            if let dish = preset.dish {
+                summation.append(dish)
+            }
+
+            // Trigger forecast update
+            Task {
+                await updateForecasts()
+                insulinCalculated = await calculateInsulin()
+            }
+        }
+
+        func filterPresets(_ presets: [MealPresetStored]) -> [MealPresetStored] {
+            guard !presetSearchText.isEmpty else { return [] }
+            return presets.filter { preset in
+                guard let dish = preset.dish else { return false }
+                return dish.localizedCaseInsensitiveContains(presetSearchText)
+            }
         }
     }
 }

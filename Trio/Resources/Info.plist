@@ -71,6 +71,8 @@
 	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Bluetooth is used to communicate with insulin pump and continuous glucose monitor devices</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access is needed to scan food product barcodes for nutrition information.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Bluetooth is used to communicate with insulin pump and continuous glucose monitor devices</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>

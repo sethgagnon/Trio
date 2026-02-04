@@ -25,6 +25,11 @@ extension Treatments {
         @State private var pushed: Bool = false
         @State private var debounce: DispatchWorkItem?
 
+        @FetchRequest(
+            entity: MealPresetStored.entity(),
+            sortDescriptors: [NSSortDescriptor(key: "dish", ascending: true)]
+        ) var mealPresets: FetchedResults<MealPresetStored>
+
         private enum Config {
             static let dividerHeight: CGFloat = 2
             static let spacing: CGFloat = 3
@@ -186,7 +191,21 @@ extension Treatments {
 
         var body: some View {
             ZStack(alignment: .center) {
-                VStack {
+                VStack(spacing: 0) {
+                    // Food Search Bar with barcode scanner
+                    FoodSearchBar(
+                        searchText: $state.presetSearchText,
+                        onScanTapped: {
+                            state.showBarcodeScanner = true
+                        },
+                        filteredPresets: state.filterPresets(Array(mealPresets)),
+                        onPresetSelected: { preset in
+                            state.applyPreset(preset)
+                            handleDebouncedInput()
+                        },
+                        useFPUconversion: state.useFPUconversion
+                    )
+
                     List {
                         Section {
                             ForecastChart(state: state)
@@ -414,6 +433,57 @@ extension Treatments {
                 }
             } message: {
                 Text("\(state.determinationFailureMessage)")
+            }
+            .sheet(isPresented: $state.showBarcodeScanner) {
+                BarcodeScannerView(
+                    isPresented: $state.showBarcodeScanner,
+                    onBarcodeScanned: { barcode in
+                        Task {
+                            await state.handleBarcodeScanned(barcode)
+                        }
+                    }
+                )
+            }
+            .sheet(isPresented: $state.showScannedFoodResult) {
+                if let product = state.scannedProduct {
+                    ScannedFoodResultView(
+                        product: product,
+                        useFPUconversion: state.useFPUconversion,
+                        onConfirm: { carbs, fat, protein in
+                            state.applyScannedNutrition(carbsValue: carbs, fatValue: fat, proteinValue: protein)
+                            handleDebouncedInput()
+                        },
+                        onSaveAsPreset: { product in
+                            state.saveScannedFoodAsPreset(product)
+                        },
+                        onCancel: {
+                            state.showScannedFoodResult = false
+                            state.scannedProduct = nil
+                        }
+                    )
+                }
+            }
+            .overlay {
+                if state.isFetchingProduct {
+                    ZStack {
+                        Color.black.opacity(0.3)
+                        VStack(spacing: 16) {
+                            ProgressView()
+                            Text("Looking up product...")
+                                .foregroundStyle(.primary)
+                        }
+                        .padding()
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemBackground)))
+                    }
+                    .ignoresSafeArea()
+                }
+            }
+            .alert("Product Lookup Failed", isPresented: .constant(state.foodFetchError != nil)) {
+                Button("OK") {
+                    state.foodFetchError = nil
+                }
+            } message: {
+                Text(state.foodFetchError ?? "")
             }
         }
 
