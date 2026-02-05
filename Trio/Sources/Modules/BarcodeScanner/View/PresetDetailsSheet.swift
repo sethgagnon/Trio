@@ -1,42 +1,42 @@
-import SwiftUI
 import CoreData
+import SwiftUI
 
 /// Sheet displayed after selecting a meal preset to adjust serving size
 struct PresetDetailsSheet: View {
     let preset: MealPresetStored
     @Binding var isPresented: Bool
-    var onConfirm: (Decimal, Decimal, Decimal, String) -> Void  // carbs, fat, protein, name
-    
+    var onConfirm: (Decimal, Decimal, Decimal, String) -> Void // carbs, fat, protein, name
+
     @State private var selectedPreset: ServingPreset = .one
     @State private var customMultiplier: Decimal = 1
     @State private var useCustom: Bool = false
-    
+
     private var currentMultiplier: Decimal {
         useCustom ? customMultiplier : selectedPreset.value
     }
-    
+
     // Base values from preset
     private var baseCarbs: Decimal { preset.carbs?.decimalValue ?? 0 }
     private var baseFat: Decimal { preset.fat?.decimalValue ?? 0 }
     private var baseProtein: Decimal { preset.protein?.decimalValue ?? 0 }
-    
+
     // Calculated values based on multiplier
     private var adjustedCarbs: Decimal { (baseCarbs * currentMultiplier).rounded(0) }
     private var adjustedFat: Decimal { (baseFat * currentMultiplier).rounded(0) }
     private var adjustedProtein: Decimal { (baseProtein * currentMultiplier).rounded(0) }
-    
+
     var body: some View {
         NavigationStack {
             Form {
                 // Preset Info
                 presetInfoSection
-                
+
                 // Serving Size
                 servingSizeSection
-                
+
                 // Nutrition Facts
                 nutritionSection
-                
+
                 // Actions
                 actionsSection
             }
@@ -53,16 +53,16 @@ struct PresetDetailsSheet: View {
             }
         }
     }
-    
+
     // MARK: - Sections
-    
+
     private var presetInfoSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
                 Text(preset.dish ?? "Unnamed Preset")
                     .font(.headline)
                     .lineLimit(2)
-                
+
                 HStack(spacing: 16) {
                     Text("Base:")
                         .font(.caption)
@@ -77,14 +77,14 @@ struct PresetDetailsSheet: View {
             Text("Saved Food")
         }
     }
-    
+
     private var servingSizeSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
                 Text("How many servings?")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
-                
+
                 // Serving preset picker
                 HStack(spacing: 8) {
                     ForEach(ServingPreset.allCases, id: \.self) { preset in
@@ -112,20 +112,20 @@ struct PresetDetailsSheet: View {
                         .buttonStyle(.plain)
                     }
                 }
-                
+
                 // Custom input
                 HStack {
                     Toggle("Custom", isOn: $useCustom)
                         .toggleStyle(.button)
                         .tint(useCustom ? .blue : .gray)
-                    
+
                     if useCustom {
                         HStack {
                             TextField("1.0", value: $customMultiplier, format: .number)
                                 .keyboardType(.decimalPad)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 80)
-                            
+
                             Text("servings")
                                 .foregroundColor(.secondary)
                         }
@@ -137,7 +137,7 @@ struct PresetDetailsSheet: View {
             Text("Serving Size")
         }
     }
-    
+
     private var nutritionSection: some View {
         Section {
             HStack {
@@ -151,7 +151,7 @@ struct PresetDetailsSheet: View {
             Text("Adjusted Nutrition (×\(multiplierStr))")
         }
     }
-    
+
     private var actionsSection: some View {
         Section {
             Button {

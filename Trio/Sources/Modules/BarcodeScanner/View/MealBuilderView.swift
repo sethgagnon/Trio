@@ -4,8 +4,8 @@ import SwiftUI
 /// Main view for building a meal from multiple scanned items and/or presets
 struct MealBuilderView: View {
     @Binding var isPresented: Bool
-    var onMealComplete: (Decimal, Decimal, Decimal, String) -> Void  // carbs, fat, protein, note
-    
+    var onMealComplete: (Decimal, Decimal, Decimal, String) -> Void // carbs, fat, protein, note
+
     @State private var mealBuilder = MealBuilder()
     @State private var showScanner = false
     @State private var showPresetPicker = false
@@ -16,7 +16,7 @@ struct MealBuilderView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showError = false
-    
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -26,9 +26,9 @@ struct MealBuilderView: View {
                 } else {
                     itemsList
                 }
-                
+
                 Divider()
-                
+
                 // Totals and actions
                 bottomSection
             }
@@ -98,54 +98,56 @@ struct MealBuilderView: View {
             }
         }
     }
-    
+
     // MARK: - Views
-    
+
     private var emptyStateView: some View {
         VStack(spacing: 20) {
             Spacer()
-            
+
             Image(systemName: "fork.knife.circle")
                 .font(.system(size: 60))
                 .foregroundColor(.secondary)
-            
+
             Text("Build Your Meal")
                 .font(.headline)
                 .foregroundColor(.secondary)
-            
+
             Text("Add saved foods or scan barcodes")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
-            
-            HStack(spacing: 16) {
+
+            VStack(spacing: 12) {
                 Button {
                     showPresetPicker = true
                 } label: {
                     Label("Saved Foods", systemImage: "star.fill")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
-                        .padding()
+                        .padding(.vertical, 14)
                 }
                 .buttonStyle(.bordered)
-                
+                .cornerRadius(12)
+
                 Button {
                     showScanner = true
                 } label: {
                     Label("Scan", systemImage: "barcode.viewfinder")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
-                        .padding()
+                        .padding(.vertical, 14)
                 }
                 .buttonStyle(.borderedProminent)
+                .cornerRadius(12)
             }
-            .padding(.horizontal)
-            
+            .padding(.horizontal, 16)
+
             Spacer()
         }
         .padding()
     }
-    
+
     private var itemsList: some View {
         List {
             ForEach(mealBuilder.items) { item in
@@ -156,7 +158,7 @@ struct MealBuilderView: View {
             .onDelete { indexSet in
                 indexSet.forEach { mealBuilder.remove(at: $0) }
             }
-            
+
             // Add more items buttons
             Section {
                 Button {
@@ -164,7 +166,7 @@ struct MealBuilderView: View {
                 } label: {
                     Label("Add Saved Food", systemImage: "star")
                 }
-                
+
                 Button {
                     showScanner = true
                 } label: {
@@ -174,45 +176,53 @@ struct MealBuilderView: View {
         }
         .listStyle(.insetGrouped)
     }
-    
+
     private var bottomSection: some View {
-        VStack(spacing: 16) {
-            // Totals
-            HStack(spacing: 20) {
-                TotalPill(label: "Carbs", value: mealBuilder.totalCarbs, color: .green)
-                TotalPill(label: "Fat", value: mealBuilder.totalFat, color: .orange)
-                TotalPill(label: "Protein", value: mealBuilder.totalProtein, color: .red)
-            }
-            .padding(.horizontal)
-            .padding(.top, 16)
-            
-            // Action buttons
-            VStack(spacing: 12) {
-                Button {
-                    completeMeal()
-                } label: {
-                    HStack {
-                        Spacer()
-                        Label("Use This Meal", systemImage: "checkmark.circle.fill")
-                            .font(.headline)
-                        Spacer()
-                    }
-                    .padding()
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                // Section header
+                Text("MEAL SUMMARY")
+                    .font(.system(size: 13))
+                    .foregroundColor(Color(.systemGray))
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+
+                // Totals
+                HStack(spacing: 12) {
+                    TotalPill(label: "Carbs", value: mealBuilder.totalCarbs, color: .green)
+                    TotalPill(label: "Fat", value: mealBuilder.totalFat, color: .orange)
+                    TotalPill(label: "Protein", value: mealBuilder.totalProtein, color: .red)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(mealBuilder.isEmpty)
+                .padding(.horizontal, 16)
             }
-            .padding(.horizontal)
-            .padding(.bottom, 16)
+            .padding(.bottom, 20)
+
+            // Action button
+            Button {
+                completeMeal()
+            } label: {
+                HStack {
+                    Spacer()
+                    Label("Use This Meal", systemImage: "checkmark.circle.fill")
+                        .font(.headline)
+                    Spacer()
+                }
+                .padding(.vertical, 16)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(mealBuilder.isEmpty)
+            .cornerRadius(12)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 20)
         }
         .background(Color(.systemGroupedBackground))
     }
-    
+
     private var loadingOverlay: some View {
         ZStack {
             Color.black.opacity(0.3)
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 16) {
                 ProgressView()
                     .scaleEffect(1.5)
@@ -224,12 +234,12 @@ struct MealBuilderView: View {
             .cornerRadius(16)
         }
     }
-    
+
     // MARK: - Actions
-    
+
     private func handleScannedBarcode(_ barcode: String) async {
         isLoading = true
-        
+
         do {
             let food = try await NutritionAPIService.shared.fetchProduct(barcode: barcode)
             await MainActor.run {
@@ -245,7 +255,7 @@ struct MealBuilderView: View {
             }
         }
     }
-    
+
     private func completeMeal() {
         onMealComplete(
             mealBuilder.totalCarbs,
@@ -261,7 +271,7 @@ struct MealBuilderView: View {
 struct MealItemRow: View {
     let item: MealItem
     var onRemove: () -> Void
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -269,14 +279,14 @@ struct MealItemRow: View {
                     Text(item.name)
                         .font(.headline)
                         .lineLimit(1)
-                    
+
                     Text(item.servingLabel)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                
+
                 Spacer()
-                
+
                 Button(role: .destructive) {
                     onRemove()
                 } label: {
@@ -285,7 +295,7 @@ struct MealItemRow: View {
                 }
                 .buttonStyle(.plain)
             }
-            
+
             HStack(spacing: 16) {
                 MacroLabel(label: "C", value: item.nutrition.carbs, color: .green)
                 MacroLabel(label: "F", value: item.nutrition.fat, color: .orange)
@@ -301,7 +311,7 @@ struct MacroLabel: View {
     let label: String
     let value: Decimal
     let color: Color
-    
+
     var body: some View {
         HStack(spacing: 4) {
             Text(label)
@@ -320,7 +330,7 @@ struct TotalPill: View {
     let label: String
     let value: Decimal
     let color: Color
-    
+
     var body: some View {
         VStack(spacing: 4) {
             Text("\(NSDecimalNumber(decimal: value).intValue)g")
@@ -341,14 +351,14 @@ struct TotalPill: View {
 struct PresetPickerSheet: View {
     @Binding var isPresented: Bool
     var onPresetSelected: (MealPresetStored) -> Void
-    
+
     @FetchRequest(
         entity: MealPresetStored.entity(),
         sortDescriptors: [NSSortDescriptor(key: "dish", ascending: true)]
     ) var presets: FetchedResults<MealPresetStored>
-    
+
     @State private var searchText = ""
-    
+
     private var filteredPresets: [MealPresetStored] {
         if searchText.isEmpty {
             return Array(presets)
@@ -357,7 +367,7 @@ struct PresetPickerSheet: View {
             preset.dish?.localizedCaseInsensitiveContains(searchText) ?? false
         }
     }
-    
+
     var body: some View {
         NavigationStack {
             List {
@@ -365,7 +375,10 @@ struct PresetPickerSheet: View {
                     ContentUnavailableView(
                         "No Saved Foods",
                         systemImage: "star.slash",
-                        description: Text(searchText.isEmpty ? "Add foods from the Presets menu" : "No matches for '\(searchText)'")
+                        description: Text(
+                            searchText
+                                .isEmpty ? "Add foods from the Presets menu" : "No matches for '\(searchText)'"
+                        )
                     )
                 } else {
                     ForEach(filteredPresets) { preset in
@@ -378,16 +391,16 @@ struct PresetPickerSheet: View {
                                     Text(preset.dish ?? "Unnamed")
                                         .font(.body)
                                         .foregroundColor(.primary)
-                                    
+
                                     HStack(spacing: 12) {
                                         MacroLabel(label: "C", value: preset.carbs?.decimalValue ?? 0, color: .green)
                                         MacroLabel(label: "F", value: preset.fat?.decimalValue ?? 0, color: .orange)
                                         MacroLabel(label: "P", value: preset.protein?.decimalValue ?? 0, color: .red)
                                     }
                                 }
-                                
+
                                 Spacer()
-                                
+
                                 Image(systemName: "plus.circle")
                                     .foregroundColor(.blue)
                             }
