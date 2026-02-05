@@ -175,13 +175,13 @@ struct PresetDetailsSheet: View {
                 onConfirm(carbs, fat, protein, name)
                 isPresented = false
             })
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        isPresented = false
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            isPresented = false
+                        }
                     }
                 }
-            }
         }
     }
 }

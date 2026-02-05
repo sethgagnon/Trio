@@ -391,10 +391,6 @@ struct PresetPickerSheet: View {
                                 }
 
                                 Spacer()
-
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.secondary)
-                                    .font(.caption)
                             }
                         }
                     }
