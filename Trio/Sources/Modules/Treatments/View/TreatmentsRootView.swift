@@ -20,6 +20,7 @@ extension Treatments {
         @State var state = StateModel()
 
         @State private var showPresetSheet = false
+        @State private var showMealBuilder = false
         @State private var autofocus: Bool = true
         @State private var calculatorDetent = PresentationDetent.large
         @State private var pushed: Bool = false
@@ -194,6 +195,23 @@ extension Treatments {
                         }.listRowBackground(Color.chart)
 
                         Section {
+                            // Scan Food Button
+                            Button {
+                                showMealBuilder = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "barcode.viewfinder")
+                                        .foregroundColor(.blue)
+                                    Text("Scan Food Items")
+                                        .foregroundColor(.blue)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+
                             carbsTextField()
 
                             if state.useFPUconversion {
@@ -407,6 +425,19 @@ extension Treatments {
                 showPresetSheet = false
             }) {
                 MealPresetView(state: state)
+            }
+            .sheet(isPresented: $showMealBuilder) {
+                MealBuilderView(isPresented: $showMealBuilder) { carbs, fat, protein, note in
+                    // Populate the treatment fields with scanned meal data
+                    state.carbs = carbs
+                    state.fat = fat
+                    state.protein = protein
+                    if !note.isEmpty {
+                        state.note = String(note.prefix(25)) // Respect max length
+                    }
+                    // Trigger recalculation
+                    handleDebouncedInput()
+                }
             }
             .alert("Error while processing Treatment", isPresented: $state.showDeterminationFailureAlert) {
                 Button("OK", role: .cancel) {
