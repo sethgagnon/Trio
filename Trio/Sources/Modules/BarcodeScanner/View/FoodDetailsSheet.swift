@@ -1,3 +1,4 @@
+import CoreData
 import SwiftUI
 
 /// Sheet displayed after scanning a barcode to show food details and adjust serving
@@ -6,9 +7,13 @@ struct FoodDetailsSheet: View {
     var onAddToMeal: (FoodProduct, Decimal) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.managedObjectContext) private var moc
     @State private var selectedPreset: ServingPreset = .one
     @State private var customMultiplier: Decimal = 1
     @State private var useCustom: Bool = false
+    @State private var showSavePresetAlert: Bool = false
+    @State private var presetName: String = ""
+    @State private var showSavedConfirmation: Bool = false
 
     private var currentMultiplier: Decimal {
         useCustom ? max(0.1, customMultiplier) : selectedPreset.value
@@ -168,7 +173,79 @@ struct FoodDetailsSheet: View {
             .buttonStyle(.borderedProminent)
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets())
+
+            Button {
+                presetName = food.name
+                showSavePresetAlert = true
+            } label: {
+                HStack {
+                    Spacer()
+                    Label("Save as Preset", systemImage: "bookmark.fill")
+                        .font(.headline)
+                    Spacer()
+                }
+            }
+            .buttonStyle(.bordered)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
         }
+        .alert("Save as Meal Preset", isPresented: $showSavePresetAlert) {
+            TextField("Preset Name", text: $presetName)
+            Button("Cancel", role: .cancel) {
+                presetName = ""
+            }
+            Button("Save") {
+                saveAsPreset()
+            }
+        } message: {
+            Text("Enter a name for this preset")
+        }
+        .overlay {
+            if showSavedConfirmation {
+                savedConfirmationOverlay
+            }
+        }
+    }
+
+    private func saveAsPreset() {
+        guard !presetName.isEmpty else { return }
+
+        let preset = MealPresetStored(context: moc)
+        preset.dish = presetName
+        preset.carbs = nutrition.carbs as NSDecimalNumber
+        preset.fat = nutrition.fat as NSDecimalNumber
+        preset.protein = nutrition.protein as NSDecimalNumber
+
+        do {
+            if moc.hasChanges {
+                try moc.save()
+                showSavedConfirmation = true
+
+                // Hide confirmation after 2 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    showSavedConfirmation = false
+                }
+            }
+        } catch {
+            print("Failed to save preset: \(error.localizedDescription)")
+        }
+
+        presetName = ""
+    }
+
+    private var savedConfirmationOverlay: some View {
+        VStack {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 50))
+                .foregroundColor(.green)
+            Text("Preset Saved!")
+                .font(.headline)
+                .foregroundColor(.primary)
+        }
+        .padding(24)
+        .background(.ultraThinMaterial)
+        .cornerRadius(16)
+        .transition(.scale.combined(with: .opacity))
     }
 }
 
