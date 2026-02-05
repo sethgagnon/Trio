@@ -22,6 +22,7 @@ struct FoodProduct: Codable, Identifiable {
     enum DataSource: String, Codable {
         case fatSecret
         case openFoodFacts
+        case ai
         case cache
         case manual
     }

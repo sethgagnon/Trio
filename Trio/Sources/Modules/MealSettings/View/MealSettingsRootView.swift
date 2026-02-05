@@ -427,6 +427,36 @@ extension MealSettings {
                         }
                     }
                 }.listRowBackground(Color.chart)
+
+                // MARK: - Claude AI Settings
+
+                Section(
+                    header: Text("AI-Powered Lookup"),
+                    footer: Text(
+                        "Optional: Enter your Claude API key to use AI for more accurate nutrition data when barcode databases are incomplete. Get an API key at console.anthropic.com"
+                    )
+                ) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Claude API Key")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        SecureField("Enter API Key", text: $state.claudeAPIKey)
+                            .textFieldStyle(.roundedBorder)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled()
+                    }
+                    .padding(.vertical, 4)
+
+                    if state.isClaudeConfigured {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Claude AI configured")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }.listRowBackground(Color.chart)
             }
             .listSectionSpacing(sectionSpacing)
             .sheet(isPresented: $shouldDisplayHint) {

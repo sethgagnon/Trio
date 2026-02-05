@@ -30,12 +30,26 @@ extension MealSettings {
             FatSecretConfig.isConfigured
         }
 
+        // Claude API key (stored in UserDefaults via ClaudeConfig)
+        @Published var claudeAPIKey: String = "" {
+            didSet {
+                ClaudeConfig.apiKey = claudeAPIKey
+            }
+        }
+
+        var isClaudeConfigured: Bool {
+            ClaudeConfig.isConfigured
+        }
+
         override func subscribe() {
             units = settingsManager.settings.units
 
             // Load FatSecret credentials from UserDefaults
             fatSecretClientId = FatSecretConfig.clientId
             fatSecretClientSecret = FatSecretConfig.clientSecret
+
+            // Load Claude API key from UserDefaults
+            claudeAPIKey = ClaudeConfig.apiKey
 
             subscribeSetting(\.maxCarbs, on: $maxCarbs) { maxCarbs = $0 }
             subscribeSetting(\.maxFat, on: $maxFat) { maxFat = $0 }

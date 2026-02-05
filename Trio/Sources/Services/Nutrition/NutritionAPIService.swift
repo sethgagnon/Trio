@@ -22,7 +22,7 @@ enum NutritionError: LocalizedError {
 }
 
 /// Unified service for fetching nutrition data
-/// Uses FatSecret as primary source with OpenFoodFacts as fallback
+/// Priority: FatSecret -> OpenFoodFacts -> Claude AI (if configured)
 actor NutritionAPIService {
     static let shared = NutritionAPIService()
 
@@ -42,7 +42,7 @@ actor NutritionAPIService {
     }
 
     /// Fetch product by barcode
-    /// Tries FatSecret first (if configured), then falls back to OpenFoodFacts
+    /// Tries FatSecret first (if configured), then OpenFoodFacts, then Claude AI
     /// - Parameter barcode: The product barcode (UPC, EAN, etc.)
     /// - Returns: FoodProduct with nutrition information
     func fetchProduct(barcode: String) async throws -> FoodProduct {
@@ -51,42 +51,100 @@ actor NutritionAPIService {
             return cached
         }
 
+        var bestProduct: FoodProduct?
+        var productName: String?
+        var productBrand: String?
+
         // Try FatSecret first if configured
         if FatSecretConfig.isConfigured {
             do {
                 let product = try await FatSecretAPIService.shared.fetchProduct(barcode: barcode)
-
-                // Validate FatSecret data - if it seems suspiciously low, try OpenFoodFacts
-                let nutrition = product.nutrition(forServings: 1)
-                let totalMacros = nutrition.carbs + nutrition.fat + nutrition.protein
-
-                // If total macros for a serving is less than 5g, data might be incorrect
-                // Try OpenFoodFacts to compare
-                if totalMacros < 5 {
-                    print("FatSecret data seems low (total: \(totalMacros)g), checking OpenFoodFacts...")
-                    if let offProduct = try? await fetchFromOpenFoodFacts(barcode: barcode) {
-                        let offNutrition = offProduct.nutrition(forServings: 1)
-                        let offTotal = offNutrition.carbs + offNutrition.fat + offNutrition.protein
-
-                        // Use OpenFoodFacts if it has significantly more data
-                        if offTotal > totalMacros * 2 {
-                            print("Using OpenFoodFacts data instead (total: \(offTotal)g)")
-                            cache[barcode] = offProduct
-                            return offProduct
-                        }
-                    }
-                }
-
-                cache[barcode] = product
-                return product
+                productName = product.name
+                productBrand = product.brand
+                bestProduct = product
+                print("FatSecret found: \(product.name)")
             } catch {
-                // Log the error but continue to fallback
-                print("FatSecret lookup failed: \(error.localizedDescription), trying OpenFoodFacts...")
+                print("FatSecret lookup failed: \(error.localizedDescription)")
             }
         }
 
-        // Fallback to OpenFoodFacts
-        return try await fetchFromOpenFoodFacts(barcode: barcode)
+        // Try OpenFoodFacts
+        do {
+            let offProduct = try await fetchFromOpenFoodFacts(barcode: barcode)
+            productName = productName ?? offProduct.name
+            productBrand = productBrand ?? offProduct.brand
+            print("OpenFoodFacts found: \(offProduct.name)")
+
+            // Compare with FatSecret result if we have both
+            if let existing = bestProduct {
+                let existingNutrition = existing.nutrition(forServings: 1)
+                let offNutrition = offProduct.nutrition(forServings: 1)
+                let existingTotal = existingNutrition.carbs + existingNutrition.fat + existingNutrition.protein
+                let offTotal = offNutrition.carbs + offNutrition.fat + offNutrition.protein
+
+                // Use the source with higher macro totals (more likely to be accurate)
+                if offTotal > existingTotal {
+                    print("Using OpenFoodFacts (higher macros: \(offTotal)g vs \(existingTotal)g)")
+                    bestProduct = offProduct
+                }
+            } else {
+                bestProduct = offProduct
+            }
+        } catch {
+            print("OpenFoodFacts lookup failed: \(error.localizedDescription)")
+        }
+
+        // If we have a product from barcode databases, validate and potentially use AI
+        if let product = bestProduct {
+            let nutrition = product.nutrition(forServings: 1)
+            let totalMacros = nutrition.carbs + nutrition.fat + nutrition.protein
+
+            // If data seems suspiciously low and Claude is configured, verify with AI
+            if totalMacros < 15, ClaudeConfig.isConfigured {
+                print("Barcode data seems low (total: \(totalMacros)g), checking with Claude AI...")
+                if let aiProduct = try? await fetchFromClaude(
+                    productName: product.name,
+                    brand: product.brand,
+                    barcode: barcode
+                ) {
+                    let aiNutrition = aiProduct.nutrition(forServings: 1)
+                    let aiTotal = aiNutrition.carbs + aiNutrition.fat + aiNutrition.protein
+
+                    // Use AI data if it's significantly higher (more accurate)
+                    if aiTotal > totalMacros * 1.5 {
+                        print("Using Claude AI data (total: \(aiTotal)g vs \(totalMacros)g)")
+                        cache[barcode] = aiProduct
+                        return aiProduct
+                    }
+                }
+            }
+
+            cache[barcode] = product
+            return product
+        }
+
+        // Last resort: Try Claude AI if we have no data but know the product name
+        if let name = productName, ClaudeConfig.isConfigured {
+            print("No barcode data found, trying Claude AI for: \(name)")
+            let aiProduct = try await fetchFromClaude(
+                productName: name,
+                brand: productBrand,
+                barcode: barcode
+            )
+            cache[barcode] = aiProduct
+            return aiProduct
+        }
+
+        throw NutritionError.productNotFound
+    }
+
+    /// Fetch nutrition data using Claude AI
+    private func fetchFromClaude(productName: String, brand: String?, barcode: String) async throws -> FoodProduct {
+        try await ClaudeNutritionService.shared.fetchNutrition(
+            productName: productName,
+            brand: brand,
+            barcode: barcode
+        )
     }
 
     /// Fetch from OpenFoodFacts API
