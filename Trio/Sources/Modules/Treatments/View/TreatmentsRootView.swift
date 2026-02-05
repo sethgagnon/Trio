@@ -21,6 +21,7 @@ extension Treatments {
 
         @State private var showPresetSheet = false
         @State private var showMealBuilder = false
+        @State private var foodSearchText: String = ""
         @State private var autofocus: Bool = true
         @State private var calculatorDetent = PresentationDetent.large
         @State private var pushed: Bool = false
@@ -195,22 +196,24 @@ extension Treatments {
                         }.listRowBackground(Color.chart)
 
                         Section {
-                            // Scan Food Button
-                            Button {
-                                showMealBuilder = true
-                            } label: {
-                                HStack {
-                                    Image(systemName: "barcode.viewfinder")
-                                        .foregroundColor(.blue)
-                                    Text("Scan Food Items")
-                                        .foregroundColor(.blue)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                            // Food search bar with barcode scanner
+                            FoodSearchBar(
+                                searchText: $foodSearchText,
+                                onScanTapped: {
+                                    showMealBuilder = true
+                                },
+                                onPresetSelected: { preset in
+                                    // Populate fields from selected preset
+                                    state.carbs = preset.carbs?.decimalValue ?? 0
+                                    state.fat = preset.fat?.decimalValue ?? 0
+                                    state.protein = preset.protein?.decimalValue ?? 0
+                                    if let dish = preset.dish {
+                                        state.note = String(dish.prefix(25))
+                                    }
+                                    handleDebouncedInput()
                                 }
-                            }
-                            .buttonStyle(.plain)
+                            )
+                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
 
                             carbsTextField()
 

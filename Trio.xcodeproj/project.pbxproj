@@ -329,6 +329,13 @@
 		715120D22D3C2BB4005D9FB6 /* GlucoseNotificationsOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 715120D12D3C2B84005D9FB6 /* GlucoseNotificationsOption.swift */; };
 		71D44AAB2CA5F5EA0036EE9E /* AlertPermissionsChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D44AAA2CA5F5EA0036EE9E /* AlertPermissionsChecker.swift */; };
 		72F1BD388F42FCA6C52E4500 /* ConfigEditorProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44080E4709E3AE4B73054563 /* ConfigEditorProvider.swift */; };
+		7BB5E0BB2F342DEF008E3359 /* MealBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0B72F342DEF008E3359 /* MealBuilderView.swift */; };
+		7BB5E0BC2F342DEF008E3359 /* BarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0B52F342DEF008E3359 /* BarcodeScannerView.swift */; };
+		7BB5E0BD2F342DEF008E3359 /* FoodDetailsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0B62F342DEF008E3359 /* FoodDetailsSheet.swift */; };
+		7BB5E0BE2F342DEF008E3359 /* MealBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0B92F342DEF008E3359 /* MealBuilder.swift */; };
+		7BB5E0C32F342E1E008E3359 /* FoodProduct.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0BF2F342E1E008E3359 /* FoodProduct.swift */; };
+		7BB5E0C42F342E1E008E3359 /* NutritionAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0C02F342E1E008E3359 /* NutritionAPIService.swift */; };
+		7BB5E0C52F342E1E008E3359 /* OpenFoodFactsResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0C12F342E1E008E3359 /* OpenFoodFactsResponse.swift */; };
 		7BCFACB97C821041BA43A114 /* ManualTempBasalRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C377490C77661D75E8C50649 /* ManualTempBasalRootView.swift */; };
 		7F7B756BE8543965D9FDF1A2 /* HistoryDataFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A401509D21F7F35D4E109EDA /* HistoryDataFlow.swift */; };
 		8194B80890CDD6A3C13B0FEE /* SnoozeStateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E26904AACA8D9C15D229D675 /* SnoozeStateModel.swift */; };
@@ -1158,6 +1165,13 @@
 		715120D12D3C2B84005D9FB6 /* GlucoseNotificationsOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlucoseNotificationsOption.swift; sourceTree = "<group>"; };
 		71D44AAA2CA5F5EA0036EE9E /* AlertPermissionsChecker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlertPermissionsChecker.swift; sourceTree = "<group>"; };
 		79BDA519C9B890FD9A5DFCF3 /* ISFEditorDataFlow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ISFEditorDataFlow.swift; sourceTree = "<group>"; };
+		7BB5E0B52F342DEF008E3359 /* BarcodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerView.swift; sourceTree = "<group>"; };
+		7BB5E0B62F342DEF008E3359 /* FoodDetailsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodDetailsSheet.swift; sourceTree = "<group>"; };
+		7BB5E0B72F342DEF008E3359 /* MealBuilderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealBuilderView.swift; sourceTree = "<group>"; };
+		7BB5E0B92F342DEF008E3359 /* MealBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealBuilder.swift; sourceTree = "<group>"; };
+		7BB5E0BF2F342E1E008E3359 /* FoodProduct.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodProduct.swift; sourceTree = "<group>"; };
+		7BB5E0C02F342E1E008E3359 /* NutritionAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionAPIService.swift; sourceTree = "<group>"; };
+		7BB5E0C12F342E1E008E3359 /* OpenFoodFactsResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenFoodFactsResponse.swift; sourceTree = "<group>"; };
 		7E22146D3DF4853786C78132 /* CarbRatioEditorDataFlow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CarbRatioEditorDataFlow.swift; sourceTree = "<group>"; };
 		8782B44544F38F2B2D82C38E /* NightscoutConfigRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NightscoutConfigRootView.swift; sourceTree = "<group>"; };
 		881E04BA5E0A003DE8E0A9C6 /* HistoryRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HistoryRootView.swift; sourceTree = "<group>"; };
@@ -1893,6 +1907,7 @@
 		3811DE0325C9D31700A708ED /* Modules */ = {
 			isa = PBXGroup;
 			children = (
+				7BB5E0BA2F342DEF008E3359 /* BarcodeScanner */,
 				DDD163032C4C67B400CD525A /* Adjustments */,
 				DD1745382C55BF8B00211FAC /* AlgorithmAdvancedSettings */,
 				DDF690FE2DA2C9EE008BF16C /* AppDiagnostics */,
@@ -2047,6 +2062,7 @@
 		3811DE9125C9D88200A708ED /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				7BB5E0C22F342E1E008E3359 /* Nutrition */,
 				3811DE9225C9D88200A708ED /* Appearance */,
 				DDA9AC072D67291600E6F1A9 /* AppVersionChecker */,
 				CEB434E128B8F9BC00B70274 /* Bluetooth */,
@@ -2783,6 +2799,35 @@
 				BDF34F882C10C65E00D51995 /* Data */,
 			);
 			path = LiveActivity;
+			sourceTree = "<group>";
+		};
+		7BB5E0B82F342DEF008E3359 /* View */ = {
+			isa = PBXGroup;
+			children = (
+				7BB5E0B52F342DEF008E3359 /* BarcodeScannerView.swift */,
+				7BB5E0B62F342DEF008E3359 /* FoodDetailsSheet.swift */,
+				7BB5E0B72F342DEF008E3359 /* MealBuilderView.swift */,
+			);
+			path = View;
+			sourceTree = "<group>";
+		};
+		7BB5E0BA2F342DEF008E3359 /* BarcodeScanner */ = {
+			isa = PBXGroup;
+			children = (
+				7BB5E0B82F342DEF008E3359 /* View */,
+				7BB5E0B92F342DEF008E3359 /* MealBuilder.swift */,
+			);
+			path = BarcodeScanner;
+			sourceTree = "<group>";
+		};
+		7BB5E0C22F342E1E008E3359 /* Nutrition */ = {
+			isa = PBXGroup;
+			children = (
+				7BB5E0BF2F342E1E008E3359 /* FoodProduct.swift */,
+				7BB5E0C02F342E1E008E3359 /* NutritionAPIService.swift */,
+				7BB5E0C12F342E1E008E3359 /* OpenFoodFactsResponse.swift */,
+			);
+			path = Nutrition;
 			sourceTree = "<group>";
 		};
 		84BDC840A57C65A1E6F9F780 /* View */ = {
@@ -4523,6 +4568,9 @@
 				BDA25EFD2D261C0000035F34 /* WatchState.swift in Sources */,
 				CC6C406E2ACDD69E009B8058 /* RawFetchedProfile.swift in Sources */,
 				385CEA8225F23DFD002D6D5B /* NightscoutStatus.swift in Sources */,
+				7BB5E0C32F342E1E008E3359 /* FoodProduct.swift in Sources */,
+				7BB5E0C42F342E1E008E3359 /* NutritionAPIService.swift in Sources */,
+				7BB5E0C52F342E1E008E3359 /* OpenFoodFactsResponse.swift in Sources */,
 				DD17453C2C55BFAD00211FAC /* AlgorithmAdvancedSettingsProvider.swift in Sources */,
 				F90692AA274B7AAE0037068D /* HealthKitManager.swift in Sources */,
 				38887CCE25F5725200944304 /* IOBEntry.swift in Sources */,
@@ -4555,6 +4603,10 @@
 				88AB39B23C9552BD6E0C9461 /* ISFEditorRootView.swift in Sources */,
 				BD249D9D2D42FCF500412DEB /* MealStatsSetup.swift in Sources */,
 				BD6EB2D62C7D049B0086BBB6 /* LiveActivityWidgetConfiguration.swift in Sources */,
+				7BB5E0BB2F342DEF008E3359 /* MealBuilderView.swift in Sources */,
+				7BB5E0BC2F342DEF008E3359 /* BarcodeScannerView.swift in Sources */,
+				7BB5E0BD2F342DEF008E3359 /* FoodDetailsSheet.swift in Sources */,
+				7BB5E0BE2F342DEF008E3359 /* MealBuilder.swift in Sources */,
 				DD32CF982CC82463003686D6 /* TrioRemoteControl+Bolus.swift in Sources */,
 				F816825E28DB441200054060 /* HeartBeatManager.swift in Sources */,
 				58F107742BD1A4D000B1A680 /* Determination+helper.swift in Sources */,
@@ -4996,7 +5048,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPER_TEAM = "$(DEVELOPER_TEAM)";
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = KB8QRKKQKH;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Trio/Resources/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -5041,7 +5093,7 @@
 				CURRENT_PROJECT_VERSION = $APP_BUILD_NUMBER;
 				DEVELOPER_TEAM = "$(DEVELOPER_TEAM)";
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = KB8QRKKQKH;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Trio/Resources/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -5076,7 +5128,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = KB8QRKKQKH;
 				INFOPLIST_FILE = TrioTests/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -5097,7 +5149,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = KB8QRKKQKH;
 				INFOPLIST_FILE = TrioTests/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -5122,7 +5174,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = KB8QRKKQKH;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -5156,7 +5208,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = KB8QRKKQKH;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -5190,7 +5242,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = KB8QRKKQKH;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -5227,7 +5279,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = KB8QRKKQKH;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -5264,7 +5316,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
 				DEVELOPMENT_ASSET_PATHS = "\"Trio Watch App Extension/Preview Content\"";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = KB8QRKKQKH;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -5301,7 +5353,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
 				DEVELOPMENT_ASSET_PATHS = "\"Trio Watch App Extension/Preview Content\"";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = KB8QRKKQKH;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -5334,7 +5386,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = KB8QRKKQKH;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -5360,7 +5412,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = KB8QRKKQKH;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
