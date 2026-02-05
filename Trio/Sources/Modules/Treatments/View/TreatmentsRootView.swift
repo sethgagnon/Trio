@@ -192,21 +192,25 @@ extension Treatments {
         var body: some View {
             ZStack(alignment: .center) {
                 VStack(spacing: 0) {
-                    // Food Search Bar with barcode scanner
-                    FoodSearchBar(
-                        searchText: $state.presetSearchText,
-                        onScanTapped: {
-                            state.showBarcodeScanner = true
-                        },
-                        filteredPresets: state.filterPresets(Array(mealPresets)),
-                        onPresetSelected: { preset in
-                            state.applyPreset(preset)
-                            handleDebouncedInput()
-                        },
-                        useFPUconversion: state.useFPUconversion
-                    )
-
                     List {
+                        // Food Search Bar with barcode scanner
+                        Section {
+                            FoodSearchBar(
+                                searchText: $state.presetSearchText,
+                                onScanTapped: {
+                                    state.showBarcodeScanner = true
+                                },
+                                filteredPresets: state.filterPresets(Array(mealPresets)),
+                                onPresetSelected: { preset in
+                                    state.applyPreset(preset)
+                                    handleDebouncedInput()
+                                },
+                                useFPUconversion: state.useFPUconversion
+                            )
+                        }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+
                         Section {
                             ForecastChart(state: state)
                                 .padding(.vertical)
