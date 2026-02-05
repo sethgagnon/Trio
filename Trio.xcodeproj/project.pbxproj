@@ -336,6 +336,7 @@
 		7BB5E0C32F342E1E008E3359 /* FoodProduct.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0BF2F342E1E008E3359 /* FoodProduct.swift */; };
 		7BB5E0C42F342E1E008E3359 /* NutritionAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0C02F342E1E008E3359 /* NutritionAPIService.swift */; };
 		7BB5E0C52F342E1E008E3359 /* OpenFoodFactsResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0C12F342E1E008E3359 /* OpenFoodFactsResponse.swift */; };
+		7BB5E0C72F3430E1008E3359 /* FoodSearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0C62F3430E1008E3359 /* FoodSearchBar.swift */; };
 		7BCFACB97C821041BA43A114 /* ManualTempBasalRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C377490C77661D75E8C50649 /* ManualTempBasalRootView.swift */; };
 		7F7B756BE8543965D9FDF1A2 /* HistoryDataFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A401509D21F7F35D4E109EDA /* HistoryDataFlow.swift */; };
 		8194B80890CDD6A3C13B0FEE /* SnoozeStateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E26904AACA8D9C15D229D675 /* SnoozeStateModel.swift */; };
@@ -1172,6 +1173,7 @@
 		7BB5E0BF2F342E1E008E3359 /* FoodProduct.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodProduct.swift; sourceTree = "<group>"; };
 		7BB5E0C02F342E1E008E3359 /* NutritionAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionAPIService.swift; sourceTree = "<group>"; };
 		7BB5E0C12F342E1E008E3359 /* OpenFoodFactsResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenFoodFactsResponse.swift; sourceTree = "<group>"; };
+		7BB5E0C62F3430E1008E3359 /* FoodSearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodSearchBar.swift; sourceTree = "<group>"; };
 		7E22146D3DF4853786C78132 /* CarbRatioEditorDataFlow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CarbRatioEditorDataFlow.swift; sourceTree = "<group>"; };
 		8782B44544F38F2B2D82C38E /* NightscoutConfigRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NightscoutConfigRootView.swift; sourceTree = "<group>"; };
 		881E04BA5E0A003DE8E0A9C6 /* HistoryRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HistoryRootView.swift; sourceTree = "<group>"; };
@@ -2804,6 +2806,7 @@
 		7BB5E0B82F342DEF008E3359 /* View */ = {
 			isa = PBXGroup;
 			children = (
+				7BB5E0C62F3430E1008E3359 /* FoodSearchBar.swift */,
 				7BB5E0B52F342DEF008E3359 /* BarcodeScannerView.swift */,
 				7BB5E0B62F342DEF008E3359 /* FoodDetailsSheet.swift */,
 				7BB5E0B72F342DEF008E3359 /* MealBuilderView.swift */,
@@ -4739,6 +4742,7 @@
 				5A2325522BFCBF55003518CA /* NightscoutUploadView.swift in Sources */,
 				E3A08AAE59538BC8A8ABE477 /* GlucoseNotificationSettingsDataFlow.swift in Sources */,
 				0F7A65FBD2CD8D6477ED4539 /* GlucoseNotificationSettingsProvider.swift in Sources */,
+				7BB5E0C72F3430E1008E3359 /* FoodSearchBar.swift in Sources */,
 				3171D2818C7C72CD1584BB5E /* GlucoseNotificationSettingsStateModel.swift in Sources */,
 				DDE179522C910127003CDDB7 /* MealPresetStored+CoreDataClass.swift in Sources */,
 				DDE179532C910127003CDDB7 /* MealPresetStored+CoreDataProperties.swift in Sources */,

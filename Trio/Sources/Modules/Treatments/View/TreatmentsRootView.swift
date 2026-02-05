@@ -21,6 +21,8 @@ extension Treatments {
 
         @State private var showPresetSheet = false
         @State private var showMealBuilder = false
+        @State private var showPresetDetails = false
+        @State private var selectedPreset: MealPresetStored?
         @State private var foodSearchText: String = ""
         @State private var autofocus: Bool = true
         @State private var calculatorDetent = PresentationDetent.large
@@ -203,14 +205,9 @@ extension Treatments {
                                     showMealBuilder = true
                                 },
                                 onPresetSelected: { preset in
-                                    // Populate fields from selected preset
-                                    state.carbs = preset.carbs?.decimalValue ?? 0
-                                    state.fat = preset.fat?.decimalValue ?? 0
-                                    state.protein = preset.protein?.decimalValue ?? 0
-                                    if let dish = preset.dish {
-                                        state.note = String(dish.prefix(25))
-                                    }
-                                    handleDebouncedInput()
+                                    // Show serving size adjustment sheet
+                                    selectedPreset = preset
+                                    showPresetDetails = true
                                 }
                             )
                             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -440,6 +437,23 @@ extension Treatments {
                     }
                     // Trigger recalculation
                     handleDebouncedInput()
+                }
+            }
+            .sheet(isPresented: $showPresetDetails) {
+                if let preset = selectedPreset {
+                    PresetDetailsSheet(
+                        preset: preset,
+                        isPresented: $showPresetDetails,
+                        onConfirm: { carbs, fat, protein, name in
+                            state.carbs = carbs
+                            state.fat = fat
+                            state.protein = protein
+                            if !name.isEmpty {
+                                state.note = String(name.prefix(25))
+                            }
+                            handleDebouncedInput()
+                        }
+                    )
                 }
             }
             .alert("Error while processing Treatment", isPresented: $state.showDeterminationFailureAlert) {

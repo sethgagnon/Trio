@@ -1,20 +1,20 @@
-import SwiftUI
 import CoreData
+import SwiftUI
 
 /// Combined search bar for meal presets with camera button for barcode scanning
 struct FoodSearchBar: View {
     @Binding var searchText: String
     var onScanTapped: () -> Void
     var onPresetSelected: (MealPresetStored) -> Void
-    
+
     @FetchRequest(
         entity: MealPresetStored.entity(),
         sortDescriptors: [NSSortDescriptor(key: "dish", ascending: true)]
     ) var presets: FetchedResults<MealPresetStored>
-    
+
     @State private var isExpanded = false
     @FocusState private var isSearchFocused: Bool
-    
+
     private var filteredPresets: [MealPresetStored] {
         if searchText.isEmpty {
             return Array(presets)
@@ -23,7 +23,7 @@ struct FoodSearchBar: View {
             preset.dish?.localizedCaseInsensitiveContains(searchText) ?? false
         }
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Search bar with camera button
@@ -32,7 +32,7 @@ struct FoodSearchBar: View {
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.secondary)
-                    
+
                     TextField("Search saved foods...", text: $searchText)
                         .focused($isSearchFocused)
                         .textFieldStyle(.plain)
@@ -45,7 +45,7 @@ struct FoodSearchBar: View {
                                 isExpanded = focused || !searchText.isEmpty
                             }
                         }
-                    
+
                     if !searchText.isEmpty {
                         Button {
                             searchText = ""
@@ -59,7 +59,7 @@ struct FoodSearchBar: View {
                 .padding(.vertical, 10)
                 .background(Color(.systemGray6))
                 .cornerRadius(10)
-                
+
                 // Camera button for barcode scanning
                 Button {
                     isSearchFocused = false
@@ -73,7 +73,7 @@ struct FoodSearchBar: View {
                         .cornerRadius(10)
                 }
             }
-            
+
             // Filtered results dropdown
             if isExpanded && !filteredPresets.isEmpty {
                 ScrollView {
@@ -85,7 +85,7 @@ struct FoodSearchBar: View {
                                 isSearchFocused = false
                                 isExpanded = false
                             }
-                            
+
                             if preset != filteredPresets.last {
                                 Divider()
                                     .padding(.leading, 16)
@@ -99,7 +99,7 @@ struct FoodSearchBar: View {
                 .shadow(color: .black.opacity(0.1), radius: 5, y: 2)
                 .padding(.top, 4)
             }
-            
+
             // "No results" state
             if isExpanded && filteredPresets.isEmpty && !searchText.isEmpty {
                 HStack {
@@ -123,7 +123,7 @@ struct FoodSearchBar: View {
 struct PresetResultRow: View {
     let preset: MealPresetStored
     var onTap: () -> Void
-    
+
     var body: some View {
         Button(action: onTap) {
             HStack {
@@ -131,16 +131,16 @@ struct PresetResultRow: View {
                     Text(preset.dish ?? "Unnamed")
                         .font(.body)
                         .foregroundColor(.primary)
-                    
+
                     HStack(spacing: 12) {
                         MacroTag(label: "C", value: preset.carbs?.decimalValue ?? 0, color: .green)
                         MacroTag(label: "F", value: preset.fat?.decimalValue ?? 0, color: .orange)
                         MacroTag(label: "P", value: preset.protein?.decimalValue ?? 0, color: .red)
                     }
                 }
-                
+
                 Spacer()
-                
+
                 Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -158,7 +158,7 @@ struct MacroTag: View {
     let label: String
     let value: Decimal
     let color: Color
-    
+
     var body: some View {
         HStack(spacing: 2) {
             Text(label)
@@ -180,7 +180,7 @@ struct MacroTag: View {
             onPresetSelected: { preset in print("Selected: \(preset.dish ?? "")") }
         )
         .padding()
-        
+
         Spacer()
     }
 }
