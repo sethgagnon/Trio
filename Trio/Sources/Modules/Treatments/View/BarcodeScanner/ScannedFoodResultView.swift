@@ -35,8 +35,7 @@ struct ScannedFoodResultView: View {
         }
     }
 
-    @ViewBuilder
-    private var productInfoSection: some View {
+    @ViewBuilder  private var productInfoSection: some View {
         Section {
             HStack {
                 if let imageUrl = product.imageUrl {
@@ -75,8 +74,7 @@ struct ScannedFoodResultView: View {
         .listRowBackground(Color.chart)
     }
 
-    @ViewBuilder
-    private var servingSection: some View {
+    @ViewBuilder  private var servingSection: some View {
         Section {
             Stepper(value: $servingMultiplier, in: 0.25 ... 10, step: 0.25) {
                 HStack {
@@ -92,8 +90,7 @@ struct ScannedFoodResultView: View {
         .listRowBackground(Color.chart)
     }
 
-    @ViewBuilder
-    private var nutritionSection: some View {
+    @ViewBuilder  private var nutritionSection: some View {
         Section {
             nutritionRow("Carbs", value: adjustedCarbs, color: .blue)
             if useFPUconversion {
@@ -106,8 +103,7 @@ struct ScannedFoodResultView: View {
         .listRowBackground(Color.chart)
     }
 
-    @ViewBuilder
-    private var actionsSection: some View {
+    @ViewBuilder  private var actionsSection: some View {
         Section {
             Button {
                 onConfirm(adjustedCarbs, adjustedFat, adjustedProtein)
@@ -131,8 +127,7 @@ struct ScannedFoodResultView: View {
         }
     }
 
-    @ViewBuilder
-    private func nutritionRow(_ label: String, value: Decimal, color: Color) -> some View {
+    @ViewBuilder  private func nutritionRow(_ label: String, value: Decimal, color: Color) -> some View {
         HStack {
             Circle()
                 .fill(color)

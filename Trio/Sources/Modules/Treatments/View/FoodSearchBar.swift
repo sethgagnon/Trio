@@ -89,8 +89,7 @@ struct FoodSearchBar: View {
         .padding(.vertical, 8)
     }
 
-    @ViewBuilder
-    private func presetRow(_ preset: MealPresetStored) -> some View {
+    @ViewBuilder  private func presetRow(_ preset: MealPresetStored) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(preset.dish ?? "")
@@ -119,8 +118,7 @@ struct FoodSearchBar: View {
         .contentShape(Rectangle())
     }
 
-    @ViewBuilder
-    private func nutritionLabel(_ label: String, value: NSDecimalNumber?) -> some View {
+    @ViewBuilder  private func nutritionLabel(_ label: String, value: NSDecimalNumber?) -> some View {
         if let value = value {
             Text("\(label): \(value.intValue)g")
         }

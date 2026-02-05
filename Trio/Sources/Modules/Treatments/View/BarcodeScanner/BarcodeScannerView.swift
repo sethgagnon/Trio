@@ -16,7 +16,7 @@ struct BarcodeScannerView: View {
                         onBarcodeScanned(barcode)
                         isPresented = false
                     })
-                    .ignoresSafeArea()
+                        .ignoresSafeArea()
                 } else {
                     ContentUnavailableView(
                         "Scanner Not Available",
@@ -57,7 +57,7 @@ struct DataScannerRepresentable: UIViewControllerRepresentable {
         return scanner
     }
 
-    func updateUIViewController(_ scanner: DataScannerViewController, context: Context) {
+    func updateUIViewController(_ scanner: DataScannerViewController, context _: Context) {
         if !scanner.isScanning {
             try? scanner.startScanning()
         }

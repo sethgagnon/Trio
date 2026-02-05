@@ -16,7 +16,7 @@ enum FoodDatabaseError: LocalizedError {
         switch self {
         case .productNotFound:
             return String(localized: "Product not found in database")
-        case .networkError(let error):
+        case let .networkError(error):
             return String(localized: "Network error: \(error.localizedDescription)")
         case .invalidResponse:
             return String(localized: "Invalid response from food database")
