@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Sheet displayed after scanning a barcode to show food details and adjust serving
 struct FoodDetailsSheet: View {
-    let food: FoodProduct
+    @State var food: FoodProduct
     var onAddToMeal: (FoodProduct, Decimal) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -14,6 +14,8 @@ struct FoodDetailsSheet: View {
     @State private var showSavePresetAlert: Bool = false
     @State private var presetName: String = ""
     @State private var showSavedConfirmation: Bool = false
+    @State private var isLoadingAI: Bool = false
+    @State private var aiError: String?
 
     private var currentMultiplier: Decimal {
         useCustom ? max(0.1, customMultiplier) : selectedPreset.value
@@ -21,6 +23,10 @@ struct FoodDetailsSheet: View {
 
     private var nutrition: NutritionValues {
         food.nutrition(forServings: currentMultiplier)
+    }
+
+    private var canUseAI: Bool {
+        ClaudeConfig.isConfigured && food.dataSource != .ai
     }
 
     var body: some View {
@@ -188,6 +194,45 @@ struct FoodDetailsSheet: View {
             .buttonStyle(.bordered)
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets())
+
+            // AI Lookup button - only show if Claude is configured and not already AI data
+            if canUseAI {
+                Button {
+                    Task {
+                        await lookupWithAI()
+                    }
+                } label: {
+                    HStack {
+                        Spacer()
+                        if isLoadingAI {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                                .padding(.trailing, 8)
+                            Text("Looking up...")
+                                .font(.headline)
+                        } else {
+                            Label("Lookup with AI", systemImage: "sparkles")
+                                .font(.headline)
+                        }
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .tint(.purple)
+                .disabled(isLoadingAI)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+            }
+
+            // Show data source indicator
+            HStack {
+                Spacer()
+                Text("Data from: \(dataSourceLabel)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .listRowBackground(Color.clear)
         }
         .alert("Save as Meal Preset", isPresented: $showSavePresetAlert) {
             TextField("Preset Name", text: $presetName)
@@ -231,6 +276,46 @@ struct FoodDetailsSheet: View {
         }
 
         presetName = ""
+    }
+
+    private func lookupWithAI() async {
+        isLoadingAI = true
+        aiError = nil
+
+        do {
+            let aiProduct = try await ClaudeNutritionService.shared.fetchNutrition(
+                productName: food.name,
+                brand: food.brand,
+                barcode: food.id
+            )
+
+            // Update the food with AI data
+            await MainActor.run {
+                food = aiProduct
+                isLoadingAI = false
+            }
+        } catch {
+            await MainActor.run {
+                aiError = error.localizedDescription
+                isLoadingAI = false
+            }
+            print("AI lookup failed: \(error.localizedDescription)")
+        }
+    }
+
+    private var dataSourceLabel: String {
+        switch food.dataSource {
+        case .fatSecret:
+            return "FatSecret"
+        case .openFoodFacts:
+            return "OpenFoodFacts"
+        case .ai:
+            return "Claude AI ✨"
+        case .cache:
+            return "Cache"
+        case .manual:
+            return "Manual"
+        }
     }
 
     private var savedConfirmationOverlay: some View {
