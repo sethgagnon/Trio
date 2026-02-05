@@ -80,8 +80,9 @@ struct FoodSearchBar: View {
                     LazyVStack(spacing: 0) {
                         ForEach(filteredPresets) { preset in
                             PresetResultRow(preset: preset) {
-                                // Don't collapse immediately - let parent handle it
-                                // This prevents UI state conflicts when parent presents sheet
+                                // Collapse dropdown FIRST, then notify parent
+                                // This removes dropdown from view hierarchy before sheet presents
+                                isExpanded = false
                                 isSearchFocused = false
                                 onPresetSelected(preset)
                             }
