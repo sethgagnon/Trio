@@ -81,9 +81,12 @@ struct FoodSearchBar: View {
                         ForEach(filteredPresets) { preset in
                             PresetResultRow(preset: preset) {
                                 onPresetSelected(preset)
-                                searchText = ""
-                                isSearchFocused = false
-                                isExpanded = false
+                                // Delay collapsing to allow parent sheet to present
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    searchText = ""
+                                    isSearchFocused = false
+                                    isExpanded = false
+                                }
                             }
 
                             if preset != filteredPresets.last {
