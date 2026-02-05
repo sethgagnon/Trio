@@ -80,13 +80,10 @@ struct FoodSearchBar: View {
                     LazyVStack(spacing: 0) {
                         ForEach(filteredPresets) { preset in
                             PresetResultRow(preset: preset) {
+                                // Don't collapse immediately - let parent handle it
+                                // This prevents UI state conflicts when parent presents sheet
+                                isSearchFocused = false
                                 onPresetSelected(preset)
-                                // Delay collapsing to allow parent sheet to present
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    searchText = ""
-                                    isSearchFocused = false
-                                    isExpanded = false
-                                }
                             }
 
                             if preset != filteredPresets.last {

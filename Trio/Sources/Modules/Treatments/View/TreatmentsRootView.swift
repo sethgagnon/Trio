@@ -439,7 +439,10 @@ extension Treatments {
                     handleDebouncedInput()
                 }
             }
-            .sheet(isPresented: $showPresetDetails) {
+            .sheet(isPresented: $showPresetDetails, onDismiss: {
+                // Clear search text when sheet dismisses
+                foodSearchText = ""
+            }) {
                 if let preset = selectedPreset {
                     PresetDetailsSheet(
                         preset: preset,
