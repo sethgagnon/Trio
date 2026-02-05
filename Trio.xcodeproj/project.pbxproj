@@ -330,6 +330,7 @@
 		71D44AAB2CA5F5EA0036EE9E /* AlertPermissionsChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D44AAA2CA5F5EA0036EE9E /* AlertPermissionsChecker.swift */; };
 		72F1BD388F42FCA6C52E4500 /* ConfigEditorProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44080E4709E3AE4B73054563 /* ConfigEditorProvider.swift */; };
 		7B90FF672F34EFF800CD11C8 /* FatSecretAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B90FF662F34EFF800CD11C8 /* FatSecretAPIService.swift */; };
+		7BA6C5BB2F35013100831502 /* ClaudeNutritionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BA6C5BA2F35013100831502 /* ClaudeNutritionService.swift */; };
 		7BB5E0BB2F342DEF008E3359 /* MealBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0B72F342DEF008E3359 /* MealBuilderView.swift */; };
 		7BB5E0BC2F342DEF008E3359 /* BarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0B52F342DEF008E3359 /* BarcodeScannerView.swift */; };
 		7BB5E0BD2F342DEF008E3359 /* FoodDetailsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0B62F342DEF008E3359 /* FoodDetailsSheet.swift */; };
@@ -1169,6 +1170,7 @@
 		71D44AAA2CA5F5EA0036EE9E /* AlertPermissionsChecker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlertPermissionsChecker.swift; sourceTree = "<group>"; };
 		79BDA519C9B890FD9A5DFCF3 /* ISFEditorDataFlow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ISFEditorDataFlow.swift; sourceTree = "<group>"; };
 		7B90FF662F34EFF800CD11C8 /* FatSecretAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FatSecretAPIService.swift; sourceTree = "<group>"; };
+		7BA6C5BA2F35013100831502 /* ClaudeNutritionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeNutritionService.swift; sourceTree = "<group>"; };
 		7BB5E0B52F342DEF008E3359 /* BarcodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerView.swift; sourceTree = "<group>"; };
 		7BB5E0B62F342DEF008E3359 /* FoodDetailsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodDetailsSheet.swift; sourceTree = "<group>"; };
 		7BB5E0B72F342DEF008E3359 /* MealBuilderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealBuilderView.swift; sourceTree = "<group>"; };
@@ -2831,6 +2833,7 @@
 		7BB5E0C22F342E1E008E3359 /* Nutrition */ = {
 			isa = PBXGroup;
 			children = (
+				7BA6C5BA2F35013100831502 /* ClaudeNutritionService.swift */,
 				7B90FF662F34EFF800CD11C8 /* FatSecretAPIService.swift */,
 				7BB5E0BF2F342E1E008E3359 /* FoodProduct.swift */,
 				7BB5E0C02F342E1E008E3359 /* NutritionAPIService.swift */,
@@ -4469,6 +4472,7 @@
 				DD4FFF332D458EE600B6CFF9 /* GarminWatchState.swift in Sources */,
 				DD6B7CB22C7B6F0800B75029 /* Rounding.swift in Sources */,
 				38DAB28A260D349500F74C1A /* FetchGlucoseManager.swift in Sources */,
+				7BA6C5BB2F35013100831502 /* ClaudeNutritionService.swift in Sources */,
 				BDB8998A2C565D0C006F3298 /* CarbsGlucose+helper.swift in Sources */,
 				BD7DB88E2D2C4A17003D3155 /* BolusCalculationManager.swift in Sources */,
 				38F37828261260DC009DB701 /* Color+Extensions.swift in Sources */,
