@@ -64,7 +64,11 @@ struct MealBuilderView: View {
                     isPresented: $showPresetPicker,
                     onPresetSelected: { preset in
                         selectedPreset = preset
-                        showPresetDetails = true
+                        showPresetPicker = false
+                        // Delay to allow sheet dismissal before showing next sheet
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showPresetDetails = true
+                        }
                     }
                 )
             }
@@ -384,7 +388,6 @@ struct PresetPickerSheet: View {
                     ForEach(filteredPresets) { preset in
                         Button {
                             onPresetSelected(preset)
-                            isPresented = false
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
