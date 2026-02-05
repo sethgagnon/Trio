@@ -9,8 +9,8 @@ struct MealBuilderView: View {
     @State private var mealBuilder = MealBuilder()
     @State private var showScanner = false
     @State private var showPresetPicker = false
-    @State private var showFoodDetails = false
     @State private var scannedFood: FoodProduct?
+    @State private var pendingFood: FoodProduct? // Food waiting to show after scanner dismisses
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showError = false
@@ -40,9 +40,10 @@ struct MealBuilderView: View {
                 }
             }
             .sheet(isPresented: $showScanner, onDismiss: {
-                // Check if we have food to show after scanner dismisses
-                if scannedFood != nil {
-                    showFoodDetails = true
+                // Transfer pending food to scannedFood after scanner dismisses
+                if let food = pendingFood {
+                    pendingFood = nil
+                    scannedFood = food
                 }
             }) {
                 BarcodeScannerView(isPresented: $showScanner) { barcode in
@@ -51,18 +52,14 @@ struct MealBuilderView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showFoodDetails, onDismiss: {
-                scannedFood = nil
-            }) {
-                if let food = scannedFood {
-                    FoodDetailsSheet(
-                        food: food,
-                        isPresented: $showFoodDetails,
-                        onAddToMeal: { food, multiplier in
-                            mealBuilder.add(food, servingMultiplier: multiplier)
-                        }
-                    )
-                }
+            .sheet(item: $scannedFood) { food in
+                FoodDetailsSheet(
+                    food: food,
+                    onAddToMeal: { food, multiplier in
+                        mealBuilder.add(food, servingMultiplier: multiplier)
+                        scannedFood = nil
+                    }
+                )
             }
             .sheet(isPresented: $showPresetPicker) {
                 PresetPickerSheet(
@@ -237,9 +234,8 @@ struct MealBuilderView: View {
             let food = try await NutritionAPIService.shared.fetchProduct(barcode: barcode)
             await MainActor.run {
                 isLoading = false
-                scannedFood = food
-                // Don't set showFoodDetails here - let scanner sheet's onDismiss handle it
-                // This prevents sheet-to-sheet timing conflicts
+                // Store as pending - will transfer to scannedFood when scanner dismisses
+                pendingFood = food
             }
         } catch {
             await MainActor.run {
@@ -291,31 +287,12 @@ struct MealItemRow: View {
             }
 
             HStack(spacing: 16) {
-                MacroLabel(label: "C", value: item.nutrition.carbs, color: .green)
-                MacroLabel(label: "F", value: item.nutrition.fat, color: .orange)
-                MacroLabel(label: "P", value: item.nutrition.protein, color: .red)
+                MacroTag(label: "C", value: item.nutrition.carbs, color: .green)
+                MacroTag(label: "F", value: item.nutrition.fat, color: .orange)
+                MacroTag(label: "P", value: item.nutrition.protein, color: .red)
             }
         }
         .padding(.vertical, 4)
-    }
-}
-
-/// Small macro label
-struct MacroLabel: View {
-    let label: String
-    let value: Decimal
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Text(label)
-                .font(.caption2)
-                .fontWeight(.bold)
-                .foregroundColor(color)
-            Text("\(NSDecimalNumber(decimal: value).intValue)g")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
     }
 }
 
@@ -392,9 +369,9 @@ struct PresetPickerSheet: View {
                                         .foregroundColor(.primary)
 
                                     HStack(spacing: 12) {
-                                        MacroLabel(label: "C", value: preset.carbs?.decimalValue ?? 0, color: .green)
-                                        MacroLabel(label: "F", value: preset.fat?.decimalValue ?? 0, color: .orange)
-                                        MacroLabel(label: "P", value: preset.protein?.decimalValue ?? 0, color: .red)
+                                        MacroTag(label: "C", value: preset.carbs?.decimalValue ?? 0, color: .green)
+                                        MacroTag(label: "F", value: preset.fat?.decimalValue ?? 0, color: .orange)
+                                        MacroTag(label: "P", value: preset.protein?.decimalValue ?? 0, color: .red)
                                     }
                                 }
 

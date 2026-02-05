@@ -3,15 +3,15 @@ import SwiftUI
 /// Sheet displayed after scanning a barcode to show food details and adjust serving
 struct FoodDetailsSheet: View {
     let food: FoodProduct
-    @Binding var isPresented: Bool
     var onAddToMeal: (FoodProduct, Decimal) -> Void
 
+    @Environment(\.dismiss) private var dismiss
     @State private var selectedPreset: ServingPreset = .one
     @State private var customMultiplier: Decimal = 1
     @State private var useCustom: Bool = false
 
     private var currentMultiplier: Decimal {
-        useCustom ? customMultiplier : selectedPreset.value
+        useCustom ? max(0.1, customMultiplier) : selectedPreset.value
     }
 
     private var nutrition: NutritionValues {
@@ -40,7 +40,7 @@ struct FoodDetailsSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        isPresented = false
+                        dismiss()
                     }
                 }
             }
@@ -157,7 +157,6 @@ struct FoodDetailsSheet: View {
         Section {
             Button {
                 onAddToMeal(food, currentMultiplier)
-                isPresented = false
             } label: {
                 HStack {
                     Spacer()
@@ -210,7 +209,6 @@ struct NutritionPill: View {
             servingLabel: "1 bar (68g)",
             dataSource: .openFoodFacts
         ),
-        isPresented: .constant(true),
         onAddToMeal: { _, _ in }
     )
 }

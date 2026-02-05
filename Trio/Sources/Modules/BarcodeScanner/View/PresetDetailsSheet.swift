@@ -11,7 +11,7 @@ struct PresetDetailsView: View {
     @State private var useCustom: Bool = false
 
     private var currentMultiplier: Decimal {
-        useCustom ? customMultiplier : selectedPreset.value
+        useCustom ? max(0.1, customMultiplier) : selectedPreset.value
     }
 
     // Base values from preset
