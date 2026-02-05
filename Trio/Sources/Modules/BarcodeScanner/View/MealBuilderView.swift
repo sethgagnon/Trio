@@ -39,14 +39,21 @@ struct MealBuilderView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showScanner) {
+            .sheet(isPresented: $showScanner, onDismiss: {
+                // Check if we have food to show after scanner dismisses
+                if scannedFood != nil {
+                    showFoodDetails = true
+                }
+            }) {
                 BarcodeScannerView(isPresented: $showScanner) { barcode in
                     Task {
                         await handleScannedBarcode(barcode)
                     }
                 }
             }
-            .sheet(isPresented: $showFoodDetails) {
+            .sheet(isPresented: $showFoodDetails, onDismiss: {
+                scannedFood = nil
+            }) {
                 if let food = scannedFood {
                     FoodDetailsSheet(
                         food: food,
@@ -231,7 +238,8 @@ struct MealBuilderView: View {
             await MainActor.run {
                 isLoading = false
                 scannedFood = food
-                showFoodDetails = true
+                // Don't set showFoodDetails here - let scanner sheet's onDismiss handle it
+                // This prevents sheet-to-sheet timing conflicts
             }
         } catch {
             await MainActor.run {
