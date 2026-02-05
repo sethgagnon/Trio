@@ -21,7 +21,6 @@ extension Treatments {
 
         @State private var showPresetSheet = false
         @State private var showMealBuilder = false
-        @State private var showPresetDetails = false
         @State private var selectedPreset: MealPresetStored?
         @State private var foodSearchText: String = ""
         @State private var autofocus: Bool = true
@@ -205,9 +204,8 @@ extension Treatments {
                                     showMealBuilder = true
                                 },
                                 onPresetSelected: { preset in
-                                    // Show serving size adjustment sheet
+                                    // Show serving size adjustment sheet (using item-based sheet)
                                     selectedPreset = preset
-                                    showPresetDetails = true
                                 }
                             )
                             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -439,25 +437,23 @@ extension Treatments {
                     handleDebouncedInput()
                 }
             }
-            .sheet(isPresented: $showPresetDetails, onDismiss: {
+            .sheet(item: $selectedPreset, onDismiss: {
                 // Clear search text when sheet dismisses
                 foodSearchText = ""
-            }) {
-                if let preset = selectedPreset {
-                    PresetDetailsSheet(
-                        preset: preset,
-                        isPresented: $showPresetDetails,
-                        onConfirm: { carbs, fat, protein, name in
-                            state.carbs = carbs
-                            state.fat = fat
-                            state.protein = protein
-                            if !name.isEmpty {
-                                state.note = String(name.prefix(25))
-                            }
-                            handleDebouncedInput()
+            }) { preset in
+                PresetDetailsSheet(
+                    preset: preset,
+                    onConfirm: { carbs, fat, protein, name in
+                        state.carbs = carbs
+                        state.fat = fat
+                        state.protein = protein
+                        if !name.isEmpty {
+                            state.note = String(name.prefix(25))
                         }
-                    )
-                }
+                        handleDebouncedInput()
+                        selectedPreset = nil
+                    }
+                )
             }
             .alert("Error while processing Treatment", isPresented: $state.showDeterminationFailureAlert) {
                 Button("OK", role: .cancel) {

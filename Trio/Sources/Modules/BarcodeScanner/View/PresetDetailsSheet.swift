@@ -163,19 +163,19 @@ struct PresetDetailsView: View {
 /// Sheet wrapper for PresetDetailsView (for modal presentation)
 struct PresetDetailsSheet: View {
     let preset: MealPresetStored
-    @Binding var isPresented: Bool
     var onConfirm: (Decimal, Decimal, Decimal, String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             PresetDetailsView(preset: preset, onConfirm: { carbs, fat, protein, name in
                 onConfirm(carbs, fat, protein, name)
-                isPresented = false
             })
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
-                            isPresented = false
+                            dismiss()
                         }
                     }
                 }
