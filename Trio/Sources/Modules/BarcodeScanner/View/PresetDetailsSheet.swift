@@ -5,7 +5,6 @@ import SwiftUI
 struct PresetDetailsView: View {
     let preset: MealPresetStored
     var onConfirm: (Decimal, Decimal, Decimal, String) -> Void // carbs, fat, protein, name
-    @Environment(\.dismiss) private var dismiss
 
     @State private var selectedPreset: ServingPreset = .one
     @State private var customMultiplier: Decimal = 1
@@ -147,7 +146,6 @@ struct PresetDetailsView: View {
         Section {
             Button {
                 onConfirm(adjustedCarbs, adjustedFat, adjustedProtein, preset.dish ?? "")
-                dismiss()
             } label: {
                 HStack {
                     Spacer()
@@ -159,6 +157,31 @@ struct PresetDetailsView: View {
             .buttonStyle(.borderedProminent)
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets())
+        }
+    }
+}
+
+// MARK: - Sheet Wrapper
+
+/// Sheet wrapper for PresetDetailsView (for modal presentation)
+struct PresetDetailsSheet: View {
+    let preset: MealPresetStored
+    @Binding var isPresented: Bool
+    var onConfirm: (Decimal, Decimal, Decimal, String) -> Void
+
+    var body: some View {
+        NavigationStack {
+            PresetDetailsView(preset: preset, onConfirm: { carbs, fat, protein, name in
+                onConfirm(carbs, fat, protein, name)
+                isPresented = false
+            })
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
+                }
+            }
         }
     }
 }
