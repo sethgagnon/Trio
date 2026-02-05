@@ -1,11 +1,11 @@
 import CoreData
 import SwiftUI
 
-/// Sheet displayed after selecting a meal preset to adjust serving size
-struct PresetDetailsSheet: View {
+/// View displayed after selecting a meal preset to adjust serving size
+struct PresetDetailsView: View {
     let preset: MealPresetStored
-    @Binding var isPresented: Bool
     var onConfirm: (Decimal, Decimal, Decimal, String) -> Void // carbs, fat, protein, name
+    @Environment(\.dismiss) private var dismiss
 
     @State private var selectedPreset: ServingPreset = .one
     @State private var customMultiplier: Decimal = 1
@@ -26,32 +26,23 @@ struct PresetDetailsSheet: View {
     private var adjustedProtein: Decimal { (baseProtein * currentMultiplier).rounded(0) }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                // Preset Info
-                presetInfoSection
+        Form {
+            // Preset Info
+            presetInfoSection
 
-                // Serving Size
-                servingSizeSection
+            // Serving Size
+            servingSizeSection
 
-                // Nutrition Facts
-                nutritionSection
+            // Nutrition Facts
+            nutritionSection
 
-                // Actions
-                actionsSection
-            }
-            .scrollContentBackground(.hidden)
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Adjust Serving")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        isPresented = false
-                    }
-                }
-            }
+            // Actions
+            actionsSection
         }
+        .scrollContentBackground(.hidden)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Adjust Serving")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: - Sections
@@ -156,7 +147,7 @@ struct PresetDetailsSheet: View {
         Section {
             Button {
                 onConfirm(adjustedCarbs, adjustedFat, adjustedProtein, preset.dish ?? "")
-                isPresented = false
+                dismiss()
             } label: {
                 HStack {
                     Spacer()

@@ -10,9 +10,7 @@ struct MealBuilderView: View {
     @State private var showScanner = false
     @State private var showPresetPicker = false
     @State private var showFoodDetails = false
-    @State private var showPresetDetails = false
     @State private var scannedFood: FoodProduct?
-    @State private var selectedPreset: MealPresetStored?
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showError = false
@@ -62,33 +60,17 @@ struct MealBuilderView: View {
             .sheet(isPresented: $showPresetPicker) {
                 PresetPickerSheet(
                     isPresented: $showPresetPicker,
-                    onPresetSelected: { preset in
-                        selectedPreset = preset
-                        showPresetPicker = false
-                        // Delay to allow sheet dismissal before showing next sheet
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            showPresetDetails = true
-                        }
+                    onPresetSelected: { carbs, fat, protein, name in
+                        // Add to meal builder with adjusted values
+                        let source = MealItemSource.preset(
+                            name: name,
+                            baseCarbs: carbs,
+                            baseFat: fat,
+                            baseProtein: protein
+                        )
+                        mealBuilder.items.append(MealItem(source: source, servingMultiplier: 1))
                     }
                 )
-            }
-            .sheet(isPresented: $showPresetDetails) {
-                if let preset = selectedPreset {
-                    PresetDetailsSheet(
-                        preset: preset,
-                        isPresented: $showPresetDetails,
-                        onConfirm: { carbs, fat, protein, name in
-                            // Add to meal builder with adjusted values
-                            let source = MealItemSource.preset(
-                                name: name,
-                                baseCarbs: carbs,
-                                baseFat: fat,
-                                baseProtein: protein
-                            )
-                            mealBuilder.items.append(MealItem(source: source, servingMultiplier: 1))
-                        }
-                    )
-                }
             }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) {}
@@ -354,7 +336,7 @@ struct TotalPill: View {
 /// Sheet to pick from saved presets
 struct PresetPickerSheet: View {
     @Binding var isPresented: Bool
-    var onPresetSelected: (MealPresetStored) -> Void
+    var onPresetSelected: (Decimal, Decimal, Decimal, String) -> Void
 
     @FetchRequest(
         entity: MealPresetStored.entity(),
@@ -386,8 +368,14 @@ struct PresetPickerSheet: View {
                     )
                 } else {
                     ForEach(filteredPresets) { preset in
-                        Button {
-                            onPresetSelected(preset)
+                        NavigationLink {
+                            PresetDetailsView(
+                                preset: preset,
+                                onConfirm: { carbs, fat, protein, name in
+                                    onPresetSelected(carbs, fat, protein, name)
+                                    isPresented = false
+                                }
+                            )
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -404,8 +392,9 @@ struct PresetPickerSheet: View {
 
                                 Spacer()
 
-                                Image(systemName: "plus.circle")
-                                    .foregroundColor(.blue)
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
                             }
                         }
                     }
