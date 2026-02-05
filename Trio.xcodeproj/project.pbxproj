@@ -329,6 +329,7 @@
 		715120D22D3C2BB4005D9FB6 /* GlucoseNotificationsOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 715120D12D3C2B84005D9FB6 /* GlucoseNotificationsOption.swift */; };
 		71D44AAB2CA5F5EA0036EE9E /* AlertPermissionsChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D44AAA2CA5F5EA0036EE9E /* AlertPermissionsChecker.swift */; };
 		72F1BD388F42FCA6C52E4500 /* ConfigEditorProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44080E4709E3AE4B73054563 /* ConfigEditorProvider.swift */; };
+		7B90FF672F34EFF800CD11C8 /* FatSecretAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B90FF662F34EFF800CD11C8 /* FatSecretAPIService.swift */; };
 		7BB5E0BB2F342DEF008E3359 /* MealBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0B72F342DEF008E3359 /* MealBuilderView.swift */; };
 		7BB5E0BC2F342DEF008E3359 /* BarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0B52F342DEF008E3359 /* BarcodeScannerView.swift */; };
 		7BB5E0BD2F342DEF008E3359 /* FoodDetailsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB5E0B62F342DEF008E3359 /* FoodDetailsSheet.swift */; };
@@ -1167,6 +1168,7 @@
 		715120D12D3C2B84005D9FB6 /* GlucoseNotificationsOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlucoseNotificationsOption.swift; sourceTree = "<group>"; };
 		71D44AAA2CA5F5EA0036EE9E /* AlertPermissionsChecker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlertPermissionsChecker.swift; sourceTree = "<group>"; };
 		79BDA519C9B890FD9A5DFCF3 /* ISFEditorDataFlow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ISFEditorDataFlow.swift; sourceTree = "<group>"; };
+		7B90FF662F34EFF800CD11C8 /* FatSecretAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FatSecretAPIService.swift; sourceTree = "<group>"; };
 		7BB5E0B52F342DEF008E3359 /* BarcodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerView.swift; sourceTree = "<group>"; };
 		7BB5E0B62F342DEF008E3359 /* FoodDetailsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodDetailsSheet.swift; sourceTree = "<group>"; };
 		7BB5E0B72F342DEF008E3359 /* MealBuilderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealBuilderView.swift; sourceTree = "<group>"; };
@@ -2829,6 +2831,7 @@
 		7BB5E0C22F342E1E008E3359 /* Nutrition */ = {
 			isa = PBXGroup;
 			children = (
+				7B90FF662F34EFF800CD11C8 /* FatSecretAPIService.swift */,
 				7BB5E0BF2F342E1E008E3359 /* FoodProduct.swift */,
 				7BB5E0C02F342E1E008E3359 /* NutritionAPIService.swift */,
 				7BB5E0C12F342E1E008E3359 /* OpenFoodFactsResponse.swift */,
@@ -4270,6 +4273,7 @@
 				CE94597E29E9E1EE0047C9C6 /* GarminManager.swift in Sources */,
 				3883583425EEB38000E024B2 /* PumpSettings.swift in Sources */,
 				38DAB280260CBB7F00F74C1A /* PumpView.swift in Sources */,
+				7B90FF672F34EFF800CD11C8 /* FatSecretAPIService.swift in Sources */,
 				DDD1631C2C4C697400CD525A /* AddOverrideForm.swift in Sources */,
 				3811DEB125C9D88300A708ED /* Keychain.swift in Sources */,
 				DD17453E2C55BFB600211FAC /* AlgorithmAdvancedSettingsStateModel.swift in Sources */,
