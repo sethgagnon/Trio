@@ -31,10 +31,6 @@ struct OpenFoodFactsProduct: Codable {
     func toFoodProduct() -> FoodProduct? {
         guard let name = productName, !name.isEmpty else { return nil }
 
-        let carbs = Decimal(nutriments?.carbohydrates100g ?? 0)
-        let fat = Decimal(nutriments?.fat100g ?? 0)
-        let protein = Decimal(nutriments?.proteins100g ?? 0)
-
         // Parse serving size - default to 100g if not provided
         let servingG: Decimal
         if let qty = servingQuantity, qty > 0 {
@@ -43,6 +39,32 @@ struct OpenFoodFactsProduct: Codable {
             servingG = parseServingSize(sizeStr)
         } else {
             servingG = 100
+        }
+
+        // Get nutrition values - prefer per-serving when available as they're often more accurate
+        let carbs: Decimal
+        let fat: Decimal
+        let protein: Decimal
+
+        // Check if we have valid per-serving values
+        let hasServingValues = nutriments?.carbohydratesServing != nil &&
+            nutriments?.fatServing != nil &&
+            nutriments?.proteinsServing != nil
+
+        if hasServingValues, servingG > 0 {
+            // Use per-serving values, convert to per-100g for consistent calculations
+            let carbsServing = Decimal(nutriments?.carbohydratesServing ?? 0)
+            let fatServing = Decimal(nutriments?.fatServing ?? 0)
+            let proteinServing = Decimal(nutriments?.proteinsServing ?? 0)
+
+            carbs = carbsServing / servingG * 100
+            fat = fatServing / servingG * 100
+            protein = proteinServing / servingG * 100
+        } else {
+            // Fall back to per-100g values
+            carbs = Decimal(nutriments?.carbohydrates100g ?? 0)
+            fat = Decimal(nutriments?.fat100g ?? 0)
+            protein = Decimal(nutriments?.proteins100g ?? 0)
         }
 
         return FoodProduct(
