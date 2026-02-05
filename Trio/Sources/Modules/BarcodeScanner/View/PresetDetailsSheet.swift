@@ -147,16 +147,14 @@ struct PresetDetailsView: View {
             Button {
                 onConfirm(adjustedCarbs, adjustedFat, adjustedProtein, preset.dish ?? "")
             } label: {
-                HStack {
-                    Spacer()
-                    Label("Use These Values", systemImage: "checkmark.circle.fill")
-                        .font(.headline)
-                    Spacer()
-                }
+                Text("Use These Values")
+                    .font(.headline)
+                    .foregroundStyle(Color.white)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(height: 35)
             }
-            .buttonStyle(.borderedProminent)
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color(.systemBlue))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
 }
