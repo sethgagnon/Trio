@@ -55,6 +55,28 @@ actor NutritionAPIService {
         if FatSecretConfig.isConfigured {
             do {
                 let product = try await FatSecretAPIService.shared.fetchProduct(barcode: barcode)
+
+                // Validate FatSecret data - if it seems suspiciously low, try OpenFoodFacts
+                let nutrition = product.nutrition(forServings: 1)
+                let totalMacros = nutrition.carbs + nutrition.fat + nutrition.protein
+
+                // If total macros for a serving is less than 5g, data might be incorrect
+                // Try OpenFoodFacts to compare
+                if totalMacros < 5 {
+                    print("FatSecret data seems low (total: \(totalMacros)g), checking OpenFoodFacts...")
+                    if let offProduct = try? await fetchFromOpenFoodFacts(barcode: barcode) {
+                        let offNutrition = offProduct.nutrition(forServings: 1)
+                        let offTotal = offNutrition.carbs + offNutrition.fat + offNutrition.protein
+
+                        // Use OpenFoodFacts if it has significantly more data
+                        if offTotal > totalMacros * 2 {
+                            print("Using OpenFoodFacts data instead (total: \(offTotal)g)")
+                            cache[barcode] = offProduct
+                            return offProduct
+                        }
+                    }
+                }
+
                 cache[barcode] = product
                 return product
             } catch {

@@ -151,8 +151,14 @@ actor FatSecretAPIService {
             throw FatSecretError.incompleteNutritionData
         }
 
-        // Prefer first serving (usually the standard serving)
-        let serving = servings[0]
+        // Debug: Print all servings to understand what FatSecret returns
+        print("FatSecret servings for \(food.foodName ?? "unknown"):")
+        for (index, s) in servings.enumerated() {
+            print("  [\(index)] \(s.servingDescription ?? "no desc") - carbs: \(s.carbohydrate ?? "?"), fat: \(s.fat ?? "?"), protein: \(s.protein ?? "?")")
+        }
+
+        // Find the best serving - prioritize by description
+        let serving = selectBestServing(from: servings)
 
         guard let carbsStr = serving.carbohydrate,
               let fatStr = serving.fat,
@@ -200,6 +206,34 @@ actor FatSecretAPIService {
         cache.removeAll()
         accessToken = nil
         tokenExpiration = nil
+    }
+
+    /// Select the best serving from available options
+    /// Prioritizes: "bar", "serving", "piece", "package" over generic "g" or "oz" servings
+    private func selectBestServing(from servings: [FatSecretServing]) -> FatSecretServing {
+        let priorityKeywords = ["bar", "serving", "piece", "packet", "package", "container", "unit", "portion"]
+
+        // First, try to find a serving that matches priority keywords
+        for keyword in priorityKeywords {
+            if let match = servings.first(where: {
+                $0.servingDescription?.lowercased().contains(keyword) == true
+            }) {
+                print("Selected serving by keyword '\(keyword)': \(match.servingDescription ?? "unknown")")
+                return match
+            }
+        }
+
+        // If no keyword match, prefer servings that have "1 " at the start (like "1 bar", "1 piece")
+        if let match = servings.first(where: {
+            $0.servingDescription?.hasPrefix("1 ") == true
+        }) {
+            print("Selected serving starting with '1 ': \(match.servingDescription ?? "unknown")")
+            return match
+        }
+
+        // Fall back to first serving
+        print("Falling back to first serving: \(servings[0].servingDescription ?? "unknown")")
+        return servings[0]
     }
 }
 
