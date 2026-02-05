@@ -13,8 +13,29 @@ extension MealSettings {
         @Published var delay: Decimal = 60
         @Published var maxMealAbsorptionTime: Decimal = 6
 
+        // FatSecret API credentials (stored in UserDefaults via FatSecretConfig)
+        @Published var fatSecretClientId: String = "" {
+            didSet {
+                FatSecretConfig.clientId = fatSecretClientId
+            }
+        }
+
+        @Published var fatSecretClientSecret: String = "" {
+            didSet {
+                FatSecretConfig.clientSecret = fatSecretClientSecret
+            }
+        }
+
+        var isFatSecretConfigured: Bool {
+            FatSecretConfig.isConfigured
+        }
+
         override func subscribe() {
             units = settingsManager.settings.units
+
+            // Load FatSecret credentials from UserDefaults
+            fatSecretClientId = FatSecretConfig.clientId
+            fatSecretClientSecret = FatSecretConfig.clientSecret
 
             subscribeSetting(\.maxCarbs, on: $maxCarbs) { maxCarbs = $0 }
             subscribeSetting(\.maxFat, on: $maxFat) { maxFat = $0 }

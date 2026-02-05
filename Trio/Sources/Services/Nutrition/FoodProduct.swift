@@ -20,6 +20,7 @@ struct FoodProduct: Codable, Identifiable {
     let dataSource: DataSource
 
     enum DataSource: String, Codable {
+        case fatSecret
         case openFoodFacts
         case cache
         case manual

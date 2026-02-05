@@ -386,6 +386,47 @@ extension MealSettings {
                         }
                     )
                 }
+
+                // MARK: - Barcode Scanner Settings
+
+                Section(
+                    header: Text("Barcode Scanner"),
+                    footer: Text(
+                        "Optional: Enter FatSecret API credentials for more accurate barcode nutrition data. Get free credentials at platform.fatsecret.com"
+                    )
+                ) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Client ID")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        TextField("Enter Client ID", text: $state.fatSecretClientId)
+                            .textFieldStyle(.roundedBorder)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled()
+                    }
+                    .padding(.vertical, 4)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Client Secret")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        SecureField("Enter Client Secret", text: $state.fatSecretClientSecret)
+                            .textFieldStyle(.roundedBorder)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled()
+                    }
+                    .padding(.vertical, 4)
+
+                    if state.isFatSecretConfigured {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("FatSecret API configured")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }.listRowBackground(Color.chart)
             }
             .listSectionSpacing(sectionSpacing)
             .sheet(isPresented: $shouldDisplayHint) {

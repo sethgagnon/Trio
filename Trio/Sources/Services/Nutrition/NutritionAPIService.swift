@@ -21,11 +21,12 @@ enum NutritionError: LocalizedError {
     }
 }
 
-/// Service for fetching nutrition data from OpenFoodFacts API
+/// Unified service for fetching nutrition data
+/// Uses FatSecret as primary source with OpenFoodFacts as fallback
 actor NutritionAPIService {
     static let shared = NutritionAPIService()
 
-    private let baseURL = "https://world.openfoodfacts.org/api/v2/product"
+    private let openFoodFactsBaseURL = "https://world.openfoodfacts.org/api/v2/product"
     private let session: URLSession
     private let decoder: JSONDecoder
 
@@ -36,11 +37,12 @@ actor NutritionAPIService {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 15
         config.timeoutIntervalForResource = 30
-        self.session = URLSession(configuration: config)
-        self.decoder = JSONDecoder()
+        session = URLSession(configuration: config)
+        decoder = JSONDecoder()
     }
 
     /// Fetch product by barcode
+    /// Tries FatSecret first (if configured), then falls back to OpenFoodFacts
     /// - Parameter barcode: The product barcode (UPC, EAN, etc.)
     /// - Returns: FoodProduct with nutrition information
     func fetchProduct(barcode: String) async throws -> FoodProduct {
@@ -49,15 +51,30 @@ actor NutritionAPIService {
             return cached
         }
 
-        // Build URL
-        guard let url = URL(string: "\(baseURL)/\(barcode).json") else {
+        // Try FatSecret first if configured
+        if FatSecretConfig.isConfigured {
+            do {
+                let product = try await FatSecretAPIService.shared.fetchProduct(barcode: barcode)
+                cache[barcode] = product
+                return product
+            } catch {
+                // Log the error but continue to fallback
+                print("FatSecret lookup failed: \(error.localizedDescription), trying OpenFoodFacts...")
+            }
+        }
+
+        // Fallback to OpenFoodFacts
+        return try await fetchFromOpenFoodFacts(barcode: barcode)
+    }
+
+    /// Fetch from OpenFoodFacts API
+    private func fetchFromOpenFoodFacts(barcode: String) async throws -> FoodProduct {
+        guard let url = URL(string: "\(openFoodFactsBaseURL)/\(barcode).json") else {
             throw NutritionError.invalidResponse
         }
 
-        // Make request
         let (data, response) = try await session.data(from: url)
 
-        // Check HTTP status
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NutritionError.invalidResponse
         }
@@ -69,15 +86,12 @@ actor NutritionAPIService {
             throw NutritionError.invalidResponse
         }
 
-        // Decode response
         let apiResponse = try decoder.decode(OpenFoodFactsResponse.self, from: data)
 
-        // Check if product was found
         guard apiResponse.isFound, let product = apiResponse.product else {
             throw NutritionError.productNotFound
         }
 
-        // Convert to our model
         guard let foodProduct = product.toFoodProduct() else {
             throw NutritionError.incompleteNutritionData
         }
@@ -87,7 +101,6 @@ actor NutritionAPIService {
             throw NutritionError.incompleteNutritionData
         }
 
-        // Cache for future use
         cache[barcode] = foodProduct
 
         return foodProduct
