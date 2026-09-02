@@ -204,7 +204,7 @@ extension Stat.StateModel {
                 carbs: snapshot.carbs,
                 boluses: snapshot.boluses,
                 excludedWindows: snapshot.windows,
-                overrideHistoryRetentionDays: OverrideStored.historyRetentionDays
+                overrideHistoryRetentionDays: OverrideRunStored.historyRetentionDays
             )
         )
     }
