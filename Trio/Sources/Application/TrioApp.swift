@@ -381,6 +381,7 @@ extension Notification.Name {
                 }
                 presentDevelopmentBranchWarningIfNeeded()
                 if initState.complete {
+                    stampOverrideHistoryStartIfNeeded()
                     performCleanupIfNecessary()
                 }
             }
@@ -418,6 +419,17 @@ extension Notification.Name {
         case .dark:
             return .dark
         }
+    }
+
+    /// Records the first launch that keeps override runs for their full retention.
+    ///
+    /// Written once and never moved, because it is the boundary before which override history was
+    /// already purged by an earlier build and no feature can tell an overridden loop from an
+    /// ordinary one. Without it, a report reading a 14-day window would compare against the current
+    /// 90-day policy and present days of unverifiable loops as verified.
+    private func stampOverrideHistoryStartIfNeeded() {
+        guard PropertyPersistentFlags.shared.overrideRunHistoryExtendedAt == nil else { return }
+        PropertyPersistentFlags.shared.overrideRunHistoryExtendedAt = Date()
     }
 
     private func performCleanupIfNecessary() {
