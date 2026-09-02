@@ -143,7 +143,9 @@ struct TherapyBolus: Equatable {
     let isExternal: Bool
 }
 
-struct TherapyProfileSnapshot: Equatable {
+/// Not `Equatable`: `CarbRatios` and `InsulinSensitivityEntry` are `JSON`-only, so the
+/// conformance cannot be synthesized, and nothing compares two snapshots.
+struct TherapyProfileSnapshot {
     let basal: [BasalProfileEntry]
     let isf: [InsulinSensitivityEntry]
     let carbRatios: CarbRatios

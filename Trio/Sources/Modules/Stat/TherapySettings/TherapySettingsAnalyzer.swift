@@ -200,11 +200,11 @@ enum TherapySettingsAnalyzer {
         )
         let slots = isfSlots(profile.isf)
         return slots.map { slot in
-            let inSlot = observations.filter { inSlot($0.date, slot, calendar: calendar) }
-            let implied = inSlot.map(\.isf)
+            let slotObservations = observations.filter { inSlot($0.date, slot, calendar: calendar) }
+            let implied = slotObservations.map(\.isf)
             let medianImplied = median(implied)
-            let medianDelta = median(inSlot.map(\.delta))
-            let medianInsulin = median(inSlot.map(\.insulin))
+            let medianDelta = median(slotObservations.map(\.delta))
+            let medianInsulin = median(slotObservations.map(\.insulin))
             return makeRow(
                 family: .isf,
                 startLabel: slot.label,
@@ -212,7 +212,7 @@ enum TherapySettingsAnalyzer {
                 implied: medianImplied,
                 increment: 1,
                 minValue: minObservedISF,
-                sampleCount: inSlot.count,
+                sampleCount: slotObservations.count,
                 highThreshold: 8,
                 mediumThreshold: 4,
                 lowThreshold: 2,
@@ -222,7 +222,7 @@ enum TherapySettingsAnalyzer {
                     medianISF: value,
                     medianDelta: medianDelta ?? 0,
                     medianInsulin: medianInsulin ?? 0,
-                    sampleCount: inSlot.count
+                    sampleCount: slotObservations.count
                 )
             }
         }
