@@ -82,12 +82,18 @@ enum TherapyRationale: Equatable {
     )
     case insufficientEvidence
     case roundedToUnchanged(medianImplied: Decimal)
+    /// The evidence pointed below the lowest value the setting may take, so the row keeps the
+    /// current value. Distinct from `roundedToUnchanged`, which means the evidence agreed with it.
+    case belowSafetyFloor(medianImplied: Decimal, floor: Decimal)
 }
 
 struct TherapySettingRow: Identifiable, Equatable {
-    var id: String { family.rawValue + "-" + startLabel }
+    /// `startMinutes` rather than the label: two schedule entries with the same `HH:mm` would
+    /// otherwise collide and give `ForEach` duplicate ids.
+    var id: String { "\(family.rawValue)-\(startMinutes)" }
     let family: TherapySettingFamily
     let startLabel: String
+    let startMinutes: Int
     let current: Decimal
     let suggested: Decimal
     let percentChange: Decimal
@@ -107,6 +113,9 @@ struct TherapySettingsReport: Equatable {
     let earliestSample: Date?
     let latestSample: Date?
     let insufficientHistory: Bool
+    /// The lookback reaches further back than override run history is kept, so some adjusted
+    /// loops in this window cannot be identified and excluded.
+    let overrideHistoryIncomplete: Bool
     let medianTddRatio: Decimal?
     let basalRows: [TherapySettingRow]
     let isfRows: [TherapySettingRow]
@@ -117,9 +126,12 @@ struct TherapySettingsReport: Equatable {
 /// One recorded `OrefDetermination`, reduced to the fields the report treats as evidence.
 struct TherapyLoopSample: Equatable {
     let date: Date
-    let target: Decimal?
     let cob: Decimal
-    let enactedRate: Decimal?
+    /// `OrefDetermination.rate`: the temp basal oref asked for, not proof of delivery. Nil when
+    /// the loop kept the running temp or left the profile rate alone.
+    let requestedRate: Decimal?
+    /// `OrefDetermination.duration`, needed to tell a deliberate zero temp from a bare cancel.
+    let duration: Decimal?
     let sensitivityRatio: Decimal?
     let insulinSensitivity: Decimal?
     let reason: String

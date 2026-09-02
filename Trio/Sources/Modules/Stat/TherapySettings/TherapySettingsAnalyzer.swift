@@ -16,6 +16,14 @@ enum TherapySettingsAnalyzer {
     static let minObservedCR: Decimal = 1
     static let maxObservedCR: Decimal = 150
     static let nearestLoopLimit: TimeInterval = 20 * 60
+    /// A dose given this long before a meal still counts as that meal's insulin.
+    static let preBolusWindowMinutes: Decimal = 30
+    /// The lowest and highest recorded sensitivity ratio an ISF correction may carry.
+    static let minISFSensitivityRatio: Decimal = Decimal(string: "0.85") ?? 0.85
+    static let maxISFSensitivityRatio: Decimal = Decimal(string: "1.15") ?? 1.15
+    /// `TrioApp.purgeOldNSManagedObjects` deletes `OverrideRunStored` and non-preset
+    /// `OverrideStored` older than this, so overrides before it leave no record to exclude.
+    static let overrideHistoryRetentionDays: Int = 3
 
     static func generate(from input: TherapySettingsInput) -> TherapySettingsReport {
         let windowStart = input.calendar.date(byAdding: .day, value: -input.lookbackDays, to: input.now) ?? input.now
@@ -75,6 +83,7 @@ enum TherapySettingsAnalyzer {
             earliestSample: earliest,
             latestSample: latest,
             insufficientHistory: insufficientHistory,
+            overrideHistoryIncomplete: input.lookbackDays > overrideHistoryRetentionDays,
             medianTddRatio: medianTddRatio,
             basalRows: basalRows,
             isfRows: isfRows,
@@ -113,6 +122,51 @@ enum TherapySettingsAnalyzer {
         return parseAutosensRatio(from: reason)
     }
 
+    /// What one loop's recorded temp-basal decision says about the profile rate.
+    enum BasalEvidence: Equatable {
+        /// oref recorded that the rate it wanted equalled the profile rate for that time.
+        case matchesProfile
+        /// A rate oref asked for, on the scaled axis: divide the recorded scale back out.
+        case requested(Decimal)
+        /// A deliberate zero temp: oref wanted no basal at all.
+        case zeroTemp
+    }
+
+    /// Reads the decision out of a determination, or `nil` when it recorded no usable one.
+    ///
+    /// Only reading `rate > 0` throws away every decision that means "the profile rate is fine or
+    /// too high": with `skipNeutralTemps` on, agreement is written as `rate 0, duration 0` or as no
+    /// rate at all, and a real zero temp is `rate 0, duration > 0`. What survives is the set of
+    /// loops that wanted *more* basal, which is why this has to read all four shapes.
+    static func basalEvidence(reason: String, rate: Decimal?, duration: Decimal?) -> BasalEvidence? {
+        // `profile.currentBasal` is the unscaled schedule rate (`ProfileGenerator`), so when oref
+        // records that its request matched it, the recorded fact is already about the profile
+        // value and no scale may be divided out.
+        if reason.contains("same as profile rate") || reason.contains("neutral temp basal of") {
+            return .matchesProfile
+        }
+        // "no temp required" keeps the running temp and never writes `rate`; the rate it wanted
+        // survives only in the reason text.
+        if reason.contains("no temp required") {
+            guard let requested = parseRequestedRate(from: reason) else { return nil }
+            return .requested(requested)
+        }
+        guard let rate else { return nil }
+        if rate > 0 { return .requested(rate) }
+        // Zero with a duration is a deliberate zero temp. Zero without one is a bare cancel whose
+        // intended rate was never recorded.
+        if let duration, duration > 0 { return .zeroTemp }
+        return nil
+    }
+
+    /// Parses the `req 1.25U/hr` token oref writes in its "no temp required" reason.
+    static func parseRequestedRate(from reason: String) -> Decimal? {
+        guard let range = reason.range(of: "req ") else { return nil }
+        let token = reason[range.upperBound...].prefix(while: { $0.isNumber || $0 == "." })
+        guard !token.isEmpty, let value = Decimal(string: String(token)), value >= 0 else { return nil }
+        return value
+    }
+
     private static func parseLabeledRatio(_ label: String, from reason: String) -> Decimal? {
         guard let range = reason.range(of: label) else { return nil }
         let remainder = reason[range.upperBound...]
@@ -137,22 +191,37 @@ enum TherapySettingsAnalyzer {
             var slotTddRatios: [Decimal] = []
             for loop in loops {
                 guard loop.cob <= maxCOBForBasalAndISF,
-                      let enacted = loop.enactedRate, enacted > 0,
-                      inSlot(loop.date, slot, calendar: calendar)
+                      inSlot(loop.date, slot, calendar: calendar),
+                      let evidence = basalEvidence(
+                          reason: loop.reason,
+                          rate: loop.requestedRate,
+                          duration: loop.duration
+                      )
                 else { continue }
-                guard let ratio = basalScaleRatio(from: loop.reason) else { continue }
-                impliedRates.append(enacted / ratio)
+
+                let implied: Decimal
+                switch evidence {
+                case .matchesProfile:
+                    implied = slot.value
+                case .zeroTemp:
+                    implied = 0
+                case let .requested(rate):
+                    guard let ratio = basalScaleRatio(from: loop.reason) else { continue }
+                    implied = rate / ratio
+                }
+                impliedRates.append(implied)
                 if let tddRatio = parseBasalTddRatio(from: loop.reason) {
                     slotTddRatios.append(tddRatio)
                 }
             }
             let medianImplied = median(impliedRates)
-            // Only this slot's own recorded ratios. Borrowing the window-wide median would
-            // credit Adjust Basal on loops that never recorded a ratio.
-            let slotTdd = median(slotTddRatios)
+            // Only this slot's own ratios, and only when every counted loop recorded one:
+            // a median over a subset would be credited to samples that never had a ratio.
+            let slotTdd = slotTddRatios.count == impliedRates.count ? median(slotTddRatios) : nil
             return makeRow(
                 family: .basal,
                 startLabel: slot.label,
+                startMinutes: slot.startMinutes,
                 current: slot.value,
                 implied: medianImplied,
                 increment: profile.basalIncrement,
@@ -162,13 +231,11 @@ enum TherapySettingsAnalyzer {
                 mediumThreshold: 18,
                 lowThreshold: 6,
                 unit: String(localized: "U/hr", comment: "Basal unit")
-            ) { implied in
-                if let slotTdd, slotTdd != 1,
-                   abs(implied - slot.value) < max(profile.basalIncrement / 2, Decimal(string: "0.025") ?? 0.025)
-                {
-                    return .basalMatchesTddAdjusted(medianTddRatio: slotTdd, sampleCount: impliedRates.count)
-                }
-                if abs(implied - slot.value) < max(profile.basalIncrement / 2, Decimal(string: "0.025") ?? 0.025) {
+            ) { implied, roundsToCurrent in
+                if roundsToCurrent {
+                    if let slotTdd, slotTdd != 1 {
+                        return .basalMatchesTddAdjusted(medianTddRatio: slotTdd, sampleCount: impliedRates.count)
+                    }
                     return .roundedToUnchanged(medianImplied: implied)
                 }
                 return .basalImplied(
@@ -208,6 +275,7 @@ enum TherapySettingsAnalyzer {
             return makeRow(
                 family: .isf,
                 startLabel: slot.label,
+                startMinutes: slot.startMinutes,
                 current: slot.value,
                 implied: medianImplied,
                 increment: 1,
@@ -217,7 +285,7 @@ enum TherapySettingsAnalyzer {
                 mediumThreshold: 4,
                 lowThreshold: 2,
                 unit: profile.units.rawValue + "/U"
-            ) { value in
+            ) { value, _ in
                 .isfObserved(
                     medianISF: value,
                     medianDelta: medianDelta ?? 0,
@@ -242,9 +310,12 @@ enum TherapySettingsAnalyzer {
         boluses: [TherapyBolus],
         excludedWindows: [DateInterval]
     ) -> [ISFObservation] {
-        let insulinEvents = boluses
-            .filter { !$0.isExternal && $0.amount > 0 && !isExcluded($0.date, windows: excludedWindows) }
-            .sorted { $0.date < $1.date }
+        // Every recorded dose, including external and override-window ones. The contamination
+        // check has to see doses this report will not measure: filtering them out first would
+        // make an externally injected unit invisible and credit its whole effect to this dose.
+        let allInsulin = boluses.filter { $0.amount > 0 }.sorted { $0.date < $1.date }
+        let insulinEvents = allInsulin
+            .filter { !$0.isExternal && !isExcluded($0.date, windows: excludedWindows) }
 
         var observations: [ISFObservation] = []
         var usedStarts: [Date] = []
@@ -253,19 +324,22 @@ enum TherapySettingsAnalyzer {
             if usedStarts.contains(where: { abs($0.timeIntervalSince(event.date)) < 2 * 3600 }) {
                 continue
             }
+            let windowEnd = event.date.addingTimeInterval(hours: isfOutcomeEndHours)
+            let windowStart = event.date.addingTimeInterval(-30 * 60)
+            // An override or temp target anywhere in the outcome window changes the insulin need
+            // being measured, so the whole span has to be clear, not just the dosing instant.
+            guard !isExcluded(from: windowStart, to: windowEnd, windows: excludedWindows) else { continue }
+
             guard let loop = nearestLoop(to: event.date, in: loops),
                   loop.cob <= maxCOBForBasalAndISF,
                   let ratio = loop.sensitivityRatio,
-                  ratio >= 0.85, ratio <= 1.15
+                  ratio >= minISFSensitivityRatio, ratio <= maxISFSensitivityRatio
             else { continue }
 
-            let windowEnd = event.date.addingTimeInterval(hours: isfOutcomeEndHours)
             // Carb-free means carb-free: a hypo treatment or an FPU entry raises glucose, shrinks the
             // measured drop, and would understate ISF — the direction that doses more insulin.
             let carbsInWindow = carbs.contains {
-                $0.carbs > 0
-                    && $0.date >= event.date.addingTimeInterval(-30 * 60)
-                    && $0.date <= windowEnd
+                $0.carbs > 0 && $0.date >= windowStart && $0.date <= windowEnd
             }
             guard !carbsInWindow else { continue }
 
@@ -275,10 +349,10 @@ enum TherapySettingsAnalyzer {
                 .reduce(Decimal(0)) { $0 + $1.amount }
             guard insulin >= minCorrectionInsulin else { continue }
 
-            // The rationale claims this drop came from this dose, so no other bolus may be acting in
+            // The rationale claims this drop came from this dose, so no other dose may be acting in
             // the window: earlier insulin is still active, and later insulin lands inside the drop
             // while staying out of the divisor. Either way the stated evidence would be untrue.
-            let otherInsulin = insulinEvents.contains {
+            let otherInsulin = allInsulin.contains {
                 ($0.date > dosingWindowEnd && $0.date <= windowEnd)
                     || ($0.date >= event.date.addingTimeInterval(hours: -isfOutcomeEndHours) && $0.date < event.date)
             }
@@ -338,9 +412,23 @@ enum TherapySettingsAnalyzer {
                 ) else { continue }
                 guard let loop = nearestLoop(to: meal.date, in: loops) else { continue }
 
-                let mealStart = meal.date.addingTimeInterval(-15 * 60)
+                // A pre-bolus is meal insulin, so the counting window opens before the entry.
+                let mealStart = meal.date.addingTimeInterval(minutes: -preBolusWindowMinutes)
                 let mealEnd = meal.date.addingTimeInterval(hours: mealOutcomeEndHours)
+                guard !isExcluded(from: mealStart, to: mealEnd, windows: excludedWindows) else { continue }
+
                 let bolusesInWindow = boluses.filter { $0.date >= mealStart && $0.date <= mealEnd }
+
+                // Insulin older than the pre-bolus window is a correction, not meal insulin.
+                // Counting it would credit the meal with insulin it did not need; leaving it out
+                // while it is still lowering glucose inflates the ratio instead. Neither is
+                // evidence, so the meal is dropped.
+                let priorInsulin = boluses.contains {
+                    $0.amount > 0
+                        && $0.date >= meal.date.addingTimeInterval(hours: -mealIsolationHours)
+                        && $0.date < mealStart
+                }
+                guard !priorInsulin else { continue }
 
                 let laterUserBolus = bolusesInWindow.contains { bolus in
                     !bolus.isSMB && !bolus.isExternal
@@ -387,6 +475,7 @@ enum TherapySettingsAnalyzer {
             return makeRow(
                 family: .cr,
                 startLabel: slot.label,
+                startMinutes: slot.startMinutes,
                 current: slot.value,
                 implied: medianImplied,
                 increment: Decimal(string: "0.1") ?? 0.1,
@@ -396,7 +485,7 @@ enum TherapySettingsAnalyzer {
                 mediumThreshold: 4,
                 lowThreshold: 2,
                 unit: String(localized: "g/U", comment: "Carb ratio unit")
-            ) { value in
+            ) { value, _ in
                 .crObserved(
                     medianCR: value,
                     medianCarbs: median(carbAmounts) ?? 0,
@@ -413,6 +502,7 @@ enum TherapySettingsAnalyzer {
     private static func makeRow(
         family: TherapySettingFamily,
         startLabel: String,
+        startMinutes: Int,
         current: Decimal,
         implied: Decimal?,
         increment: Decimal,
@@ -422,7 +512,7 @@ enum TherapySettingsAnalyzer {
         mediumThreshold: Int,
         lowThreshold: Int,
         unit: String,
-        rationaleForImplied: (Decimal) -> TherapyRationale
+        rationaleForImplied: (Decimal, Bool) -> TherapyRationale
     ) -> TherapySettingRow {
         let confidence = confidence(for: sampleCount, high: highThreshold, medium: mediumThreshold, low: lowThreshold)
         let suggested: Decimal
@@ -431,10 +521,13 @@ enum TherapySettingsAnalyzer {
             let rounded = roundToIncrement(implied, increment: increment)
             if rounded < minValue {
                 suggested = current
-                rationale = .roundedToUnchanged(medianImplied: implied)
+                rationale = .belowSafetyFloor(medianImplied: implied, floor: minValue)
             } else {
                 suggested = rounded
-                rationale = rationaleForImplied(implied)
+                // The row's wording is decided by the rounded number it actually shows. Comparing
+                // the raw median against a separate tolerance let a row read "rounds to your
+                // current setting" while displaying a different one.
+                rationale = rationaleForImplied(implied, rounded == current)
             }
         } else {
             suggested = current
@@ -447,6 +540,7 @@ enum TherapySettingsAnalyzer {
         return TherapySettingRow(
             family: family,
             startLabel: startLabel,
+            startMinutes: startMinutes,
             current: current,
             suggested: suggested,
             percentChange: percentChange,
@@ -509,6 +603,16 @@ enum TherapySettingsAnalyzer {
 
     private static func isExcluded(_ date: Date, windows: [DateInterval]) -> Bool {
         windows.contains { $0.contains(date) }
+    }
+
+    /// True when an override or temp target overlaps any part of `start ... end`.
+    ///
+    /// A sample is only as clean as its whole outcome window: an override starting an hour into a
+    /// 4-hour window changes the insulin need for the rest of it.
+    private static func isExcluded(from start: Date, to end: Date, windows: [DateInterval]) -> Bool {
+        guard end >= start else { return isExcluded(start, windows: windows) }
+        let span = DateInterval(start: start, end: end)
+        return windows.contains { $0.intersects(span) }
     }
 
     private static func minutesFromMidnight(_ date: Date, calendar: Calendar) -> Int {
@@ -584,7 +688,7 @@ enum TherapySettingsAnalyzer {
                     && other.date > meal.date.addingTimeInterval(-isolation)
                     && other.date < meal.date.addingTimeInterval(isolation)
             }
-        }.map(\.element)
+        }.map { $0.element }
     }
 
     private static func glucoseAround(
@@ -611,5 +715,9 @@ enum TherapySettingsAnalyzer {
 private extension Date {
     func addingTimeInterval(hours: Decimal) -> Date {
         addingTimeInterval(TimeInterval(NSDecimalNumber(decimal: hours * 3600).doubleValue))
+    }
+
+    func addingTimeInterval(minutes: Decimal) -> Date {
+        addingTimeInterval(TimeInterval(NSDecimalNumber(decimal: minutes * 60).doubleValue))
     }
 }

@@ -91,17 +91,19 @@ extension Stat.StateModel {
             key: "startDate",
             ascending: true
         )
+        // Enacting a preset enables the preset row itself, so `isPreset == NO` would miss most
+        // running adjustments and let their loops count as ordinary evidence.
         let activeOverrideResults = try await CoreDataStack.shared.fetchEntitiesAsync(
             ofType: OverrideStored.self,
             onContext: context,
-            predicate: NSPredicate(format: "enabled == YES AND isPreset == NO"),
+            predicate: NSPredicate(format: "enabled == YES"),
             key: "date",
             ascending: false
         )
         let activeTempTargetResults = try await CoreDataStack.shared.fetchEntitiesAsync(
             ofType: TempTargetStored.self,
             onContext: context,
-            predicate: NSPredicate(format: "enabled == YES AND isPreset == NO"),
+            predicate: NSPredicate(format: "enabled == YES"),
             key: "date",
             ascending: false
         )
@@ -117,9 +119,9 @@ extension Stat.StateModel {
                 guard let date = determination.deliverAt ?? determination.timestamp else { return nil }
                 return TherapyLoopSample(
                     date: date,
-                    target: determination.currentTarget?.decimalValue,
                     cob: Decimal(determination.cob),
-                    enactedRate: determination.rate?.decimalValue,
+                    requestedRate: determination.rate?.decimalValue,
+                    duration: determination.duration?.decimalValue,
                     sensitivityRatio: determination.sensitivityRatio?.decimalValue,
                     insulinSensitivity: determination.insulinSensitivity?.decimalValue,
                     reason: determination.reason ?? ""
@@ -180,15 +182,16 @@ extension Stat.StateModel {
             return (loops, glucose, carbs, boluses, windows)
         }
 
-        let profile = await MainActor.run {
-            TherapyProfileSnapshot(
-                basal: provider.basalProfile,
-                isf: provider.isfProfile.sensitivities,
-                carbRatios: provider.carbRatioProfile,
-                units: units,
-                basalIncrement: provider.basalIncrement
-            )
-        }
+        // Only `units` is main-actor state. The three profiles are synchronous disk reads, so
+        // reading them inside `MainActor.run` would block the main thread on file I/O.
+        let displayUnits = await MainActor.run { units }
+        let profile = TherapyProfileSnapshot(
+            basal: provider.basalProfile,
+            isf: provider.isfProfile.sensitivities,
+            carbRatios: provider.carbRatioProfile,
+            units: displayUnits,
+            basalIncrement: provider.basalIncrement
+        )
 
         return TherapySettingsAnalyzer.generate(
             from: TherapySettingsInput(
