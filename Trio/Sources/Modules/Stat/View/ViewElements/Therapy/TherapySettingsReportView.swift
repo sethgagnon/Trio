@@ -41,12 +41,16 @@ struct TherapySettingsReportView: View {
                 warningBanner(report)
                 evidenceCard(report)
                 tddRatioCard(report)
-                familyCard(
-                    title: String(localized: "Basal"),
-                    rows: report.basalRows,
-                    formatter: Self.basalFormatter,
-                    highlighted: report.highConfidenceFamilyToChange == .basal
-                )
+                if let reason = report.basalUnavailable {
+                    basalUnavailableCard(reason)
+                } else {
+                    familyCard(
+                        title: String(localized: "Basal"),
+                        rows: report.basalRows,
+                        formatter: Self.basalFormatter,
+                        highlighted: report.highConfidenceFamilyToChange == .basal
+                    )
+                }
                 familyCard(
                     title: String(localized: "Insulin Sensitivity"),
                     rows: report.isfRows,
@@ -152,6 +156,36 @@ struct TherapySettingsReportView: View {
         return String(
             localized: "Override history only reaches back to \(start.formatted(date: .abbreviated, time: .shortened)); earlier builds kept it for three days. Loops run under an override before then cannot be identified and are counted as ordinary evidence. This resolves once \(report.lookbackDays) days have passed since the update.",
             comment: "Override history caveat naming the date from which overridden loops can be excluded"
+        )
+    }
+
+    @ViewBuilder private func basalUnavailableCard(_ reason: BasalEvidenceUnavailable) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Basal")
+                .font(.headline)
+            switch reason {
+            case .requestedRateIsNotBasalNeed:
+                Text(
+                    "No basal suggestion is shown, because the temp basal rates in your loop history cannot measure what your schedule should be."
+                )
+                .font(.subheadline)
+                Text(
+                    "A temp basal is a response to where glucose is heading, not a reading of your basal need. When Trio microboluses it also sets a low or zero temp to offset that bolus, so the loops that delivered the most insulin are the ones recording the lowest rates. After a run of boluses the zero temps that follow mean there is surplus insulin on board, not that your schedule is too high. Suggesting a rate from those numbers would point sharply down exactly when it should not."
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                Text(
+                    "Doing this correctly needs insulin actually delivered over carb-free, bolus-free stretches, which this report does not compute yet."
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: Stat.RootView.Constants.cornerRadius)
+                .fill(Color.secondary.opacity(Stat.RootView.Constants.backgroundOpacity))
         )
     }
 
@@ -288,22 +322,6 @@ struct TherapySettingsReportView: View {
 
     private func rationaleText(_ rationale: TherapyRationale) -> String {
         switch rationale {
-        case let .basalImplied(medianRate, medianTddRatio, sampleCount):
-            if let medianTddRatio {
-                return String(
-                    localized: "Median requested temp basal ÷ recorded TDD basal ratio (\(medianTddRatio.formatted(.number.precision(.fractionLength(2))))) was \(medianRate.formatted(.number.precision(.fractionLength(2)))) U/hr across \(sampleCount) loops with COB ≤ 10 g.",
-                    comment: "Basal rationale when every counted loop recorded a TDD ratio"
-                )
-            }
-            return String(
-                localized: "Median implied profile basal was \(medianRate.formatted(.number.precision(.fractionLength(2)))) U/hr across \(sampleCount) loops with COB ≤ 10 g. Loops that requested a rate are divided by the scale recorded on them; loops where the loop recorded that the profile rate was already right count as that rate, and zero temps count as zero.",
-                comment: "Basal rationale when the counted loops did not all record a TDD ratio"
-            )
-        case let .basalMatchesTddAdjusted(medianTddRatio, sampleCount):
-            return String(
-                localized: "After dividing by the recorded TDD basal ratio (\(medianTddRatio.formatted(.number.precision(.fractionLength(2))))), \(sampleCount) loops round to the current profile rate. Adjust Basal is already covering that ratio; it is not copied into the basal schedule.",
-                comment: "Basal rationale when the evidence agrees with the current setting"
-            )
         case let .isfObserved(medianISF, medianDelta, medianInsulin, sampleCount):
             let displayISF = state.units == .mmolL ? medianISF.asMmolL : medianISF
             return String(
@@ -392,12 +410,23 @@ struct TherapySettingsReportView: View {
             )
         }
         lines.append("")
-        lines.append(contentsOf: summarySection(
-            TherapySettingFamily.basal.displayName,
-            rows: report.basalRows,
-            formatter: Self.basalFormatter,
-            convertsISF: false
-        ))
+        if report.basalUnavailable != nil {
+            lines.append(TherapySettingFamily.basal.displayName)
+            lines.append(
+                String(
+                    localized: "No suggestion. Temp basal rates cannot measure basal need: the low and zero temps that offset a microbolus, and those that follow a run of boluses, would point the suggestion sharply down.",
+                    comment: "Basal section of the copyable report when no basal evidence is available"
+                )
+            )
+            lines.append("")
+        } else {
+            lines.append(contentsOf: summarySection(
+                TherapySettingFamily.basal.displayName,
+                rows: report.basalRows,
+                formatter: Self.basalFormatter,
+                convertsISF: false
+            ))
+        }
         lines.append(contentsOf: summarySection(
             TherapySettingFamily.isf.displayName,
             rows: report.isfRows,

@@ -68,10 +68,26 @@ enum TherapyConfidence: String, Comparable {
     }
 }
 
+/// Why no basal row can be produced from the recorded evidence this report reads.
+enum BasalEvidenceUnavailable: Equatable {
+    /// The only per-slot basal signal in a determination is the temp basal it asked for, and that
+    /// is a controller output rather than a measurement of basal need.
+    ///
+    /// Two recorded behaviours make it unusable. When oref microboluses it writes `rate` as the
+    /// low or zero temp that offsets the bolus it just gave (`smbLowTempReq` in `DosingEngine`), so
+    /// delivering *extra* insulin is recorded as asking for *less* basal. And outside SMB, the
+    /// requested rate is the profile rate plus a correction for predicted deviation, so a run of
+    /// boluses is followed by zero temps that state there is surplus insulin on board — not that
+    /// the schedule is too high.
+    ///
+    /// Reading either as profile evidence understates basal exactly when the most insulin was
+    /// given. Deriving basal honestly needs delivered insulin measured over carb-free, bolus-free
+    /// windows, which this report does not yet compute.
+    case requestedRateIsNotBasalNeed
+}
+
 /// Evidence behind a row. Every associated value is computed from recorded history.
 enum TherapyRationale: Equatable {
-    case basalImplied(medianRate: Decimal, medianTddRatio: Decimal?, sampleCount: Int)
-    case basalMatchesTddAdjusted(medianTddRatio: Decimal, sampleCount: Int)
     case isfObserved(medianISF: Decimal, medianDelta: Decimal, medianInsulin: Decimal, sampleCount: Int)
     case crObserved(
         medianCR: Decimal,
@@ -113,6 +129,8 @@ struct TherapySettingsReport: Equatable {
     let earliestSample: Date?
     let latestSample: Date?
     let insufficientHistory: Bool
+    /// Why the basal family carries no rows, or nil when it does.
+    let basalUnavailable: BasalEvidenceUnavailable?
     /// The lookback starts before override history was being kept, so some adjusted loops in this
     /// window cannot be identified and excluded.
     let overrideHistoryIncomplete: Bool
@@ -129,11 +147,6 @@ struct TherapySettingsReport: Equatable {
 struct TherapyLoopSample: Equatable {
     let date: Date
     let cob: Decimal
-    /// `OrefDetermination.rate`: the temp basal oref asked for, not proof of delivery. Nil when
-    /// the loop kept the running temp or left the profile rate alone.
-    let requestedRate: Decimal?
-    /// `OrefDetermination.duration`, needed to tell a deliberate zero temp from a bare cancel.
-    let duration: Decimal?
     let sensitivityRatio: Decimal?
     let insulinSensitivity: Decimal?
     let reason: String
