@@ -85,7 +85,9 @@ extension Stat {
         }
 
         var therapyReport: TherapySettingsReport?
-        var isTherapyReportLoading = false
+        /// Starts `true` so the Therapy tab shows its loader rather than flashing the empty state
+        /// before the first build has had a chance to set it.
+        var isTherapyReportLoading = true
         @ObservationIgnored var therapyReportTask: Task<Void, Never>?
 
         // Fetching Contexts
@@ -98,7 +100,8 @@ extension Stat {
             setupLoopStatRecords()
             setupMealStats()
             setupGlucoseDailyStats()
-            setupTherapySettingsReport()
+            // The therapy report is the most expensive thing on this screen and reads eight
+            // entities, so the Therapy tab asks for it when it is actually shown.
             units = settingsManager.settings.units
             eA1cDisplayUnit = settingsManager.settings.eA1cDisplayUnit
             useFPUconversion = settingsManager.settings.useFPUconversion

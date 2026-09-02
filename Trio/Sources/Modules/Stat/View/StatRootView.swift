@@ -431,6 +431,13 @@ extension Stat {
             .pickerStyle(.segmented)
 
             TherapySettingsReportView(state: state)
+                .task {
+                    // Built here rather than in `subscribe()`: it is the heaviest query on this
+                    // screen and most visits never open this tab.
+                    if state.therapyReport == nil {
+                        state.setupTherapySettingsReport()
+                    }
+                }
 
             HStack {
                 Image(systemName: "info.circle.fill").foregroundStyle(Color.primary)
