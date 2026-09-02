@@ -474,17 +474,12 @@ extension Notification.Name {
             relationshipKey: "forecast"
         )
         async let overrideDeletion: () = coreDataStack
-            .batchDeleteOlderThan(
-                OverrideStored.self,
-                dateKey: "date",
-                days: OverrideStored.historyRetentionDays,
-                isPresetKey: "isPreset"
-            )
+            .batchDeleteOlderThan(OverrideStored.self, dateKey: "date", days: 3, isPresetKey: "isPreset")
         async let overrideRunDeletion: () = coreDataStack
             .batchDeleteOlderThan(
                 OverrideRunStored.self,
                 dateKey: "startDate",
-                days: OverrideStored.historyRetentionDays
+                days: OverrideRunStored.historyRetentionDays
             )
 
         // Await each task to ensure they are all completed

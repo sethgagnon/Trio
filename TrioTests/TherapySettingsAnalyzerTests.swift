@@ -66,7 +66,7 @@ import Testing
                 carbs: carbs,
                 boluses: boluses,
                 excludedWindows: excludedWindows,
-                overrideHistoryRetentionDays: OverrideStored.historyRetentionDays
+                overrideHistoryRetentionDays: OverrideRunStored.historyRetentionDays
             )
         )
     }
@@ -223,7 +223,7 @@ import Testing
                 carbs: [],
                 boluses: [],
                 excludedWindows: [],
-                overrideHistoryRetentionDays: OverrideStored.historyRetentionDays
+                overrideHistoryRetentionDays: OverrideRunStored.historyRetentionDays
             )
         )
         #expect(result.medianTddRatio == Decimal(string: "1.2"))
@@ -850,13 +850,17 @@ import Testing
         #expect(result.crRows[0].rationale == .insufficientEvidence)
     }
 
-    @Test("Override history is kept at least as long as the longest report lookback")
+    @Test("Completed override runs are kept at least as long as the longest report lookback")
     func overrideRetentionCoversEveryLookback() {
-        // The report can only exclude overridden loops while their records still exist. If this
+        // The report can only exclude overridden loops while their run records still exist. If this
         // fails, the store is dropping override history inside a window the report reads, and
         // adjusted loops are silently counted as ordinary evidence.
+        //
+        // Asserted against the run table on purpose. `OverrideStored` retention is read by
+        // `NSPredicate.lastActiveOverride` on every loop cycle, so this report must not be a reason
+        // to change it; the historical windows come from completed runs instead.
         let longestLookback = TherapyLookback.allCases.map(\.rawValue).max() ?? 0
-        #expect(OverrideStored.historyRetentionDays >= longestLookback)
+        #expect(OverrideRunStored.historyRetentionDays >= longestLookback)
 
         for lookback in TherapyLookback.allCases {
             let result = TherapySettingsAnalyzer.generate(
@@ -870,7 +874,7 @@ import Testing
                     carbs: [],
                     boluses: [],
                     excludedWindows: [],
-                    overrideHistoryRetentionDays: OverrideStored.historyRetentionDays
+                    overrideHistoryRetentionDays: OverrideRunStored.historyRetentionDays
                 )
             )
             #expect(result.overrideHistoryIncomplete == false)
