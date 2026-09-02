@@ -45,6 +45,8 @@ extension Stat {
                             loopingView
                         case .meals:
                             mealsView
+                        case .therapy:
+                            therapyView
                         }
                     }
                     .padding()
@@ -417,6 +419,23 @@ extension Stat {
                     Text("Swipe the chart to scroll through time.")
                     Text("Tap and hold a bar to reveal more details.")
                 }.foregroundStyle(Color.secondary)
+            }.font(.footnote)
+        }
+
+        @ViewBuilder var therapyView: some View {
+            Picker("Duration", selection: $state.therapyLookback) {
+                ForEach(TherapyLookback.allCases) { lookback in
+                    Text(lookback.displayName).tag(lookback)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            TherapySettingsReportView(state: state)
+
+            HStack {
+                Image(systemName: "info.circle.fill").foregroundStyle(Color.primary)
+                Text("Suggestions use local loop, glucose, meal, and insulin history. Nothing is written to your profile or pump.")
+                    .foregroundStyle(Color.secondary)
             }.font(.footnote)
         }
     }
