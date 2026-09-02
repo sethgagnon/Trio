@@ -34,4 +34,12 @@ extension OverrideStored {
     enum EventType: String, JSON {
         case nsExercise = "Exercise"
     }
+
+    /// How long override history survives `TrioApp.purgeOldNSManagedObjects`.
+    ///
+    /// Matches the other therapy-history entities. Anything reasoning over recorded loops needs
+    /// to know which of them ran under an override, and history kept for less time than the loops
+    /// themselves leaves adjusted loops indistinguishable from ordinary ones. The single source
+    /// of truth for both the purge and any feature that discloses the limit.
+    static let historyRetentionDays = 90
 }

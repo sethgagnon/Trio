@@ -45,6 +45,8 @@ extension Stat {
                             loopingView
                         case .meals:
                             mealsView
+                        case .therapy:
+                            therapyView
                         }
                     }
                     .padding()
@@ -417,6 +419,30 @@ extension Stat {
                     Text("Swipe the chart to scroll through time.")
                     Text("Tap and hold a bar to reveal more details.")
                 }.foregroundStyle(Color.secondary)
+            }.font(.footnote)
+        }
+
+        @ViewBuilder var therapyView: some View {
+            Picker("Duration", selection: $state.therapyLookback) {
+                ForEach(TherapyLookback.allCases) { lookback in
+                    Text(lookback.displayName).tag(lookback)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            TherapySettingsReportView(state: state)
+                .task {
+                    // Built here rather than in `subscribe()`: it is the heaviest query on this
+                    // screen and most visits never open this tab.
+                    if state.therapyReport == nil {
+                        state.setupTherapySettingsReport()
+                    }
+                }
+
+            HStack {
+                Image(systemName: "info.circle.fill").foregroundStyle(Color.primary)
+                Text("Suggestions are medians of complete recorded events. Incomplete samples are skipped, not filled in.")
+                    .foregroundStyle(Color.secondary)
             }.font(.footnote)
         }
     }

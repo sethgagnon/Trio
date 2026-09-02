@@ -76,6 +76,20 @@ extension Stat {
         // Selected Meal Chart Type
         var selectedMealChartType: MealChartType = .totalMeals
 
+        var therapyLookback: TherapyLookback = .fourteen {
+            didSet {
+                if oldValue != therapyLookback {
+                    setupTherapySettingsReport()
+                }
+            }
+        }
+
+        var therapyReport: TherapySettingsReport?
+        /// Starts `true` so the Therapy tab shows its loader rather than flashing the empty state
+        /// before the first build has had a chance to set it.
+        var isTherapyReportLoading = true
+        @ObservationIgnored var therapyReportTask: Task<Void, Never>?
+
         // Fetching Contexts
         let viewContext = CoreDataStack.shared.persistentContainer.viewContext
 
@@ -86,6 +100,8 @@ extension Stat {
             setupLoopStatRecords()
             setupMealStats()
             setupGlucoseDailyStats()
+            // The therapy report is the most expensive thing on this screen and reads eight
+            // entities, so the Therapy tab asks for it when it is actually shown.
             units = settingsManager.settings.units
             eA1cDisplayUnit = settingsManager.settings.eA1cDisplayUnit
             useFPUconversion = settingsManager.settings.useFPUconversion
@@ -360,6 +376,8 @@ extension Stat.StateModel {
         case looping
         /// Meal-related statistics and correlations
         case meals
+        /// Report-only CR / ISF / basal suggestions from local history
+        case therapy
 
         var id: String { rawValue }
 
@@ -373,6 +391,8 @@ extension Stat.StateModel {
                 return String(localized: "Looping", comment: "Title for looping and system statistics")
             case .meals:
                 return String(localized: "Meals", comment: "Title for meal-related statistics")
+            case .therapy:
+                return String(localized: "Therapy", comment: "Title for therapy settings recommendations")
             }
         }
     }
