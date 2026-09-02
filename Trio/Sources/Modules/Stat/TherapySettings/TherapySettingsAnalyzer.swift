@@ -21,9 +21,6 @@ enum TherapySettingsAnalyzer {
     /// The lowest and highest recorded sensitivity ratio an ISF correction may carry.
     static let minISFSensitivityRatio: Decimal = Decimal(string: "0.85") ?? 0.85
     static let maxISFSensitivityRatio: Decimal = Decimal(string: "1.15") ?? 1.15
-    /// `TrioApp.purgeOldNSManagedObjects` deletes `OverrideRunStored` and non-preset
-    /// `OverrideStored` older than this, so overrides before it leave no record to exclude.
-    static let overrideHistoryRetentionDays: Int = 3
 
     static func generate(from input: TherapySettingsInput) -> TherapySettingsReport {
         let windowStart = input.calendar.date(byAdding: .day, value: -input.lookbackDays, to: input.now) ?? input.now
@@ -83,7 +80,8 @@ enum TherapySettingsAnalyzer {
             earliestSample: earliest,
             latestSample: latest,
             insufficientHistory: insufficientHistory,
-            overrideHistoryIncomplete: input.lookbackDays > overrideHistoryRetentionDays,
+            overrideHistoryIncomplete: input.lookbackDays > input.overrideHistoryRetentionDays,
+            overrideHistoryRetentionDays: input.overrideHistoryRetentionDays,
             medianTddRatio: medianTddRatio,
             basalRows: basalRows,
             isfRows: isfRows,

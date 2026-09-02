@@ -125,7 +125,7 @@ struct TherapySettingsReportView: View {
 
             if report.overrideHistoryIncomplete {
                 Text(
-                    "Override history is kept for only \(TherapySettingsAnalyzer.overrideHistoryRetentionDays) days, so loops run under an override earlier in this window cannot be identified and are counted as ordinary evidence."
+                    "Override history is kept for only \(report.overrideHistoryRetentionDays) days, so loops run under an override earlier in this window cannot be identified and are counted as ordinary evidence."
                 )
                 .font(.footnote)
                 .foregroundStyle(.orange)
@@ -353,7 +353,7 @@ struct TherapySettingsReportView: View {
         if report.overrideHistoryIncomplete {
             lines.append(
                 String(
-                    localized: "Override history is kept for only \(TherapySettingsAnalyzer.overrideHistoryRetentionDays) days, so earlier overridden loops are counted as ordinary evidence.",
+                    localized: "Override history is kept for only \(report.overrideHistoryRetentionDays) days, so earlier overridden loops are counted as ordinary evidence.",
                     comment: "Override retention caveat in the copyable therapy report"
                 )
             )

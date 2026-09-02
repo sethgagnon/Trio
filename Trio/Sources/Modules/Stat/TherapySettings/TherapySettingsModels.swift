@@ -116,6 +116,7 @@ struct TherapySettingsReport: Equatable {
     /// The lookback reaches further back than override run history is kept, so some adjusted
     /// loops in this window cannot be identified and excluded.
     let overrideHistoryIncomplete: Bool
+    let overrideHistoryRetentionDays: Int
     let medianTddRatio: Decimal?
     let basalRows: [TherapySettingRow]
     let isfRows: [TherapySettingRow]
@@ -175,4 +176,7 @@ struct TherapySettingsInput {
     let carbs: [TherapyCarbEntry]
     let boluses: [TherapyBolus]
     let excludedWindows: [DateInterval]
+    /// How many days of override history the store actually keeps. Supplied by the caller so the
+    /// report discloses the real purge policy rather than a copy of it that can drift.
+    let overrideHistoryRetentionDays: Int
 }

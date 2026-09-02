@@ -65,7 +65,8 @@ import Testing
                 glucose: glucose,
                 carbs: carbs,
                 boluses: boluses,
-                excludedWindows: excludedWindows
+                excludedWindows: excludedWindows,
+                overrideHistoryRetentionDays: OverrideStored.historyRetentionDays
             )
         )
     }
@@ -221,7 +222,8 @@ import Testing
                 glucose: [],
                 carbs: [],
                 boluses: [],
-                excludedWindows: []
+                excludedWindows: [],
+                overrideHistoryRetentionDays: OverrideStored.historyRetentionDays
             )
         )
         #expect(result.medianTddRatio == Decimal(string: "1.2"))
@@ -848,13 +850,38 @@ import Testing
         #expect(result.crRows[0].rationale == .insufficientEvidence)
     }
 
-    @Test("A lookback longer than override retention is reported as incomplete")
+    @Test("Override history is kept at least as long as the longest report lookback")
+    func overrideRetentionCoversEveryLookback() {
+        // The report can only exclude overridden loops while their records still exist. If this
+        // fails, the store is dropping override history inside a window the report reads, and
+        // adjusted loops are silently counted as ordinary evidence.
+        let longestLookback = TherapyLookback.allCases.map(\.rawValue).max() ?? 0
+        #expect(OverrideStored.historyRetentionDays >= longestLookback)
+
+        for lookback in TherapyLookback.allCases {
+            let result = TherapySettingsAnalyzer.generate(
+                from: TherapySettingsInput(
+                    lookbackDays: lookback.rawValue,
+                    now: date(day: 15, hour: 12),
+                    calendar: calendar,
+                    profile: profile,
+                    loops: [],
+                    glucose: [],
+                    carbs: [],
+                    boluses: [],
+                    excludedWindows: [],
+                    overrideHistoryRetentionDays: OverrideStored.historyRetentionDays
+                )
+            )
+            #expect(result.overrideHistoryIncomplete == false)
+        }
+    }
+
+    @Test("A lookback outrunning override retention is disclosed rather than hidden")
     func reportDisclosesOverrideRetentionGap() {
-        let fourteen = report(loops: [loop(day: 3, hour: 1)])
-        #expect(fourteen.overrideHistoryIncomplete)
-        let short = TherapySettingsAnalyzer.generate(
+        let result = TherapySettingsAnalyzer.generate(
             from: TherapySettingsInput(
-                lookbackDays: TherapySettingsAnalyzer.overrideHistoryRetentionDays,
+                lookbackDays: 14,
                 now: date(day: 15, hour: 12),
                 calendar: calendar,
                 profile: profile,
@@ -862,10 +889,12 @@ import Testing
                 glucose: [],
                 carbs: [],
                 boluses: [],
-                excludedWindows: []
+                excludedWindows: [],
+                overrideHistoryRetentionDays: 3
             )
         )
-        #expect(short.overrideHistoryIncomplete == false)
+        #expect(result.overrideHistoryIncomplete)
+        #expect(result.overrideHistoryRetentionDays == 3)
     }
 
     @Test("Rows in one family keep distinct identities across identical labels")
