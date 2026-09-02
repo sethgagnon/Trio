@@ -30,24 +30,20 @@ import Testing
         day: Int,
         hour: Int,
         minute: Int = 0,
-        glucose: Decimal = 100,
         target: Decimal? = 100,
         cob: Decimal = 0,
-        enactedRate: Decimal = 1.0,
+        enactedRate: Decimal? = 1.0,
         sensitivityRatio: Decimal? = 1.0,
         insulinSensitivity: Decimal? = 40,
-        carbRatio: Decimal? = 8,
         reason: String = "Autosens ratio: 1, ISF: 40→40"
     ) -> TherapyLoopSample {
         TherapyLoopSample(
             date: date(day: day, hour: hour, minute: minute),
-            glucose: glucose,
             target: target,
             cob: cob,
             enactedRate: enactedRate,
             sensitivityRatio: sensitivityRatio,
             insulinSensitivity: insulinSensitivity,
-            carbRatio: carbRatio,
             reason: reason
         )
     }
@@ -178,13 +174,134 @@ import Testing
         #expect(result.basalRows[0].suggested == 1)
     }
 
+    @Test("A slot with no recorded TDD ratio does not borrow one from other slots")
+    func basalDoesNotBorrowTddRatioAcrossSlots() {
+        let morningProfile = TherapyProfileSnapshot(
+            basal: [
+                BasalProfileEntry(start: "00:00", minutes: 0, rate: 1.0),
+                BasalProfileEntry(start: "12:00", minutes: 720, rate: 1.0)
+            ],
+            isf: [InsulinSensitivityEntry(sensitivity: 40, offset: 0, start: "00:00")],
+            carbRatios: CarbRatios(units: .grams, schedule: [CarbRatioEntry(start: "00:00", offset: 0, ratio: 8)]),
+            units: .mgdL,
+            basalIncrement: Decimal(string: "0.05") ?? 0.05
+        )
+        var loops: [TherapyLoopSample] = []
+        for day in 2 ... 9 {
+            // Morning: Adjust Basal on and recording a ratio.
+            for hour in 0 ..< 12 {
+                loops.append(
+                    loop(
+                        day: day,
+                        hour: hour,
+                        enactedRate: Decimal(string: "1.2") ?? 1.2,
+                        reason: "Dynamic ISF: On, Sigmoid function, Basal ratio: 1.2; setting 1.2U/hr."
+                    )
+                )
+            }
+            // Afternoon: Adjust Basal off, so no ratio was ever recorded for this slot.
+            for hour in 12 ..< 24 {
+                loops.append(
+                    loop(
+                        day: day,
+                        hour: hour,
+                        enactedRate: 1.0,
+                        reason: "Dynamic ISF: On, Sigmoid function; setting 1.0U/hr."
+                    )
+                )
+            }
+        }
+        let result = TherapySettingsAnalyzer.generate(
+            from: TherapySettingsInput(
+                lookbackDays: 14,
+                now: date(day: 15, hour: 12),
+                calendar: calendar,
+                profile: morningProfile,
+                loops: loops,
+                glucose: [],
+                carbs: [],
+                boluses: [],
+                excludedWindows: []
+            )
+        )
+        #expect(result.medianTddRatio == Decimal(string: "1.2"))
+        if case .basalMatchesTddAdjusted = result.basalRows[0].rationale {} else {
+            Issue.record("Expected the morning slot to credit its own recorded ratio")
+        }
+        // The afternoon slot recorded no ratio, so it must not claim one.
+        if case let .basalMatchesTddAdjusted(ratio, _) = result.basalRows[1].rationale {
+            Issue.record("Afternoon slot claimed an unrecorded TDD ratio of \(ratio)")
+        }
+    }
+
+    @Test("Determinations without an enacted rate still count as ISF context")
+    func isfUsesLoopsWithoutEnactedRate() {
+        var loops: [TherapyLoopSample] = []
+        var glucose: [TherapyGlucoseReading] = []
+        var boluses: [TherapyBolus] = []
+        for day in 2 ... 9 {
+            let start = date(day: day, hour: 8)
+            loops.append(
+                loop(day: day, hour: 8, target: 100, cob: 0, enactedRate: nil, sensitivityRatio: 1.0)
+            )
+            boluses.append(TherapyBolus(date: start, amount: 1, isSMB: true, isExternal: false))
+            glucose.append(TherapyGlucoseReading(date: start, glucose: 150))
+            glucose.append(TherapyGlucoseReading(date: start.addingTimeInterval(3.5 * 3600), glucose: 100))
+        }
+        let result = report(loops: loops, glucose: glucose, boluses: boluses)
+        #expect(result.isfRows[0].sampleCount == 8)
+        #expect(result.isfRows[0].suggested == 50)
+        // No enacted rate anywhere, so basal has no evidence of its own.
+        #expect(result.basalRows[0].sampleCount == 0)
+    }
+
+    @Test("A small hypo treatment disqualifies a carb-free ISF correction")
+    func isfRejectsAnyCarbsInWindow() {
+        var loops: [TherapyLoopSample] = []
+        var glucose: [TherapyGlucoseReading] = []
+        var boluses: [TherapyBolus] = []
+        var carbs: [TherapyCarbEntry] = []
+        for day in 2 ... 9 {
+            let start = date(day: day, hour: 8)
+            loops.append(loop(day: day, hour: 8, target: 100, cob: 0, sensitivityRatio: 1.0))
+            boluses.append(TherapyBolus(date: start, amount: 1, isSMB: true, isExternal: false))
+            glucose.append(TherapyGlucoseReading(date: start, glucose: 150))
+            glucose.append(TherapyGlucoseReading(date: start.addingTimeInterval(3.5 * 3600), glucose: 100))
+            // 6 g is below the meal threshold but still raises glucose.
+            carbs.append(TherapyCarbEntry(date: start.addingTimeInterval(3600), carbs: 6, isFPU: false))
+        }
+        let result = report(loops: loops, glucose: glucose, carbs: carbs, boluses: boluses)
+        #expect(result.isfRows[0].sampleCount == 0)
+        #expect(result.isfRows[0].rationale == .insufficientEvidence)
+    }
+
+    @Test("Another bolus inside the window disqualifies an ISF correction")
+    func isfRejectsOtherInsulinInWindow() {
+        var loops: [TherapyLoopSample] = []
+        var glucose: [TherapyGlucoseReading] = []
+        var boluses: [TherapyBolus] = []
+        for day in 2 ... 9 {
+            let start = date(day: day, hour: 8)
+            loops.append(loop(day: day, hour: 8, target: 100, cob: 0, sensitivityRatio: 1.0))
+            boluses.append(TherapyBolus(date: start, amount: 1, isSMB: true, isExternal: false))
+            // 90 minutes later: lands inside the 3-4h drop but outside the 30-minute divisor.
+            boluses.append(
+                TherapyBolus(date: start.addingTimeInterval(90 * 60), amount: 1, isSMB: true, isExternal: false)
+            )
+            glucose.append(TherapyGlucoseReading(date: start, glucose: 150))
+            glucose.append(TherapyGlucoseReading(date: start.addingTimeInterval(3.5 * 3600), glucose: 100))
+        }
+        let result = report(loops: loops, glucose: glucose, boluses: boluses)
+        #expect(result.isfRows[0].sampleCount == 0)
+        #expect(result.isfRows[0].rationale == .insufficientEvidence)
+    }
+
     @Test("Sitting high with no correction insulin is not an ISF recommendation")
     func isfDoesNotInventFromGlucoseAlone() {
         let loops = (0 ..< 30).map { index in
             loop(
                 day: 5,
                 hour: index % 24,
-                glucose: 115,
                 target: 100,
                 sensitivityRatio: 1.0
             )
@@ -201,7 +318,6 @@ import Testing
             loop(
                 day: 4 + day,
                 hour: 8,
-                glucose: 180,
                 target: 100,
                 sensitivityRatio: 1.3
             )
@@ -228,7 +344,7 @@ import Testing
         for day in 2 ... 9 {
             let start = date(day: day, hour: 8)
             loops.append(
-                loop(day: day, hour: 8, glucose: 150, target: 100, cob: 0, sensitivityRatio: 1.0)
+                loop(day: day, hour: 8, target: 100, cob: 0, sensitivityRatio: 1.0)
             )
             boluses.append(TherapyBolus(date: start, amount: 1, isSMB: true, isExternal: false))
             glucose.append(TherapyGlucoseReading(date: start, glucose: 150))
@@ -255,7 +371,7 @@ import Testing
         for day in 2 ... 9 {
             let start = date(day: day, hour: 8)
             loops.append(
-                loop(day: day, hour: 8, glucose: 150, target: 100, cob: 0, sensitivityRatio: nil)
+                loop(day: day, hour: 8, target: 100, cob: 0, sensitivityRatio: nil)
             )
             boluses.append(TherapyBolus(date: start, amount: 1, isSMB: true, isExternal: false))
             glucose.append(TherapyGlucoseReading(date: start, glucose: 150))
@@ -282,10 +398,8 @@ import Testing
                 loop(
                     day: day,
                     hour: 18,
-                    glucose: 100,
                     target: 100,
-                    insulinSensitivity: 50,
-                    carbRatio: 8
+                    insulinSensitivity: 50
                 )
             )
             boluses.append(TherapyBolus(date: meal, amount: Decimal(string: "7.5") ?? 7.5, isSMB: false, isExternal: false))
@@ -317,20 +431,56 @@ import Testing
         #expect(result.crRows[0].rationale == .insufficientEvidence)
     }
 
-    @Test("CR does not substitute 100 for a missing recorded target")
-    func crRequiresRecordedTarget() {
-        let meal = date(day: 3, hour: 18)
-        let result = report(
-            loops: [loop(day: 3, hour: 18, target: nil, insulinSensitivity: 50)],
-            glucose: [
-                TherapyGlucoseReading(date: meal, glucose: 100),
-                TherapyGlucoseReading(date: meal.addingTimeInterval(3.5 * 3600), glucose: 110)
-            ],
-            carbs: [TherapyCarbEntry(date: meal, carbs: 60, isFPU: false)],
-            boluses: [TherapyBolus(date: meal, amount: Decimal(string: "7.5") ?? 7.5, isSMB: false, isExternal: false)]
-        )
-        #expect(result.crRows[0].sampleCount == 0)
+    @Test("CR measures the residual against the pre-meal glucose, not the target")
+    func crUsesStartingGlucoseNotTarget() {
+        var carbs: [TherapyCarbEntry] = []
+        var glucose: [TherapyGlucoseReading] = []
+        var loops: [TherapyLoopSample] = []
+        var boluses: [TherapyBolus] = []
+        for day in 2 ... 9 {
+            let meal = date(day: day, hour: 18)
+            carbs.append(TherapyCarbEntry(date: meal, carbs: 60, isFPU: false))
+            // Starts 80 mg/dL above target and returns to exactly where it started: the meal was
+            // fully covered by the recorded bolus, so CR must come out at the profile value.
+            glucose.append(TherapyGlucoseReading(date: meal, glucose: 180))
+            glucose.append(TherapyGlucoseReading(date: meal.addingTimeInterval(3.5 * 3600), glucose: 180))
+            boluses.append(
+                TherapyBolus(date: meal, amount: Decimal(string: "7.5") ?? 7.5, isSMB: false, isExternal: false)
+            )
+            loops.append(loop(day: day, hour: 18, target: 100, insulinSensitivity: 50))
+        }
+        let result = report(loops: loops, glucose: glucose, carbs: carbs, boluses: boluses)
+        // 60 g / 7.5 U = 8 g/U. Measuring against the 100 target instead would charge the meal
+        // 80/50 = 1.6 U it did not need and report 60 / 9.1 ≈ 6.6 g/U.
+        #expect(result.crSampleCount == 8)
         #expect(result.crRows[0].suggested == 8)
+        if case let .crObserved(medianCR, _, medianInsulin, _, _) = result.crRows[0].rationale {
+            #expect(medianCR == 8)
+            #expect(medianInsulin == Decimal(string: "7.5"))
+        } else {
+            Issue.record("Expected observed CR rationale, got \(result.crRows[0].rationale)")
+        }
+    }
+
+    @Test("Meals covered by an external bolus are not carb ratio evidence")
+    func crSkipsExternalInsulin() {
+        var carbs: [TherapyCarbEntry] = []
+        var glucose: [TherapyGlucoseReading] = []
+        var loops: [TherapyLoopSample] = []
+        var boluses: [TherapyBolus] = []
+        for day in 2 ... 9 {
+            let meal = date(day: day, hour: 18)
+            carbs.append(TherapyCarbEntry(date: meal, carbs: 60, isFPU: false))
+            glucose.append(TherapyGlucoseReading(date: meal, glucose: 100))
+            glucose.append(TherapyGlucoseReading(date: meal.addingTimeInterval(3.5 * 3600), glucose: 110))
+            boluses.append(
+                TherapyBolus(date: meal, amount: Decimal(string: "7.5") ?? 7.5, isSMB: false, isExternal: false)
+            )
+            boluses.append(TherapyBolus(date: meal, amount: 2, isSMB: false, isExternal: true))
+            loops.append(loop(day: day, hour: 18, target: 100, insulinSensitivity: 50))
+        }
+        let result = report(loops: loops, glucose: glucose, carbs: carbs, boluses: boluses)
+        #expect(result.crSampleCount == 0)
         #expect(result.crRows[0].rationale == .insufficientEvidence)
     }
 
@@ -351,10 +501,60 @@ import Testing
         #expect(result.crRows[0].rationale == .insufficientEvidence)
     }
 
+    @Test("A meal following an earlier meal within 4h is not treated as isolated")
+    func crIsolationLooksBackwards() {
+        var carbs: [TherapyCarbEntry] = []
+        var glucose: [TherapyGlucoseReading] = []
+        var loops: [TherapyLoopSample] = []
+        var boluses: [TherapyBolus] = []
+        for day in 2 ... 9 {
+            let first = date(day: day, hour: 17)
+            let second = date(day: day, hour: 18)
+            carbs.append(TherapyCarbEntry(date: first, carbs: 40, isFPU: false))
+            carbs.append(TherapyCarbEntry(date: second, carbs: 60, isFPU: false))
+            for meal in [first, second] {
+                glucose.append(TherapyGlucoseReading(date: meal, glucose: 100))
+                glucose.append(TherapyGlucoseReading(date: meal.addingTimeInterval(3.5 * 3600), glucose: 110))
+                boluses.append(
+                    TherapyBolus(date: meal, amount: Decimal(string: "7.5") ?? 7.5, isSMB: false, isExternal: false)
+                )
+            }
+            loops.append(loop(day: day, hour: 17, target: 100, insulinSensitivity: 50))
+            loops.append(loop(day: day, hour: 18, target: 100, insulinSensitivity: 50))
+        }
+        let result = report(loops: loops, glucose: glucose, carbs: carbs, boluses: boluses)
+        #expect(result.crSampleCount == 0)
+        #expect(result.crRows[0].suggested == 8)
+        #expect(result.crRows[0].rationale == .insufficientEvidence)
+    }
+
+    @Test("An FPU entry logged with the meal disqualifies it as a carb ratio sample")
+    func crSkipsMealsWithFPUs() {
+        var carbs: [TherapyCarbEntry] = []
+        var glucose: [TherapyGlucoseReading] = []
+        var loops: [TherapyLoopSample] = []
+        var boluses: [TherapyBolus] = []
+        for day in 2 ... 9 {
+            let meal = date(day: day, hour: 18)
+            carbs.append(TherapyCarbEntry(date: meal, carbs: 60, isFPU: false))
+            // Trio logs fat/protein units alongside the meal; they keep absorbing past 4h.
+            carbs.append(TherapyCarbEntry(date: meal, carbs: 12, isFPU: true))
+            glucose.append(TherapyGlucoseReading(date: meal, glucose: 100))
+            glucose.append(TherapyGlucoseReading(date: meal.addingTimeInterval(3.5 * 3600), glucose: 110))
+            boluses.append(
+                TherapyBolus(date: meal, amount: Decimal(string: "7.5") ?? 7.5, isSMB: false, isExternal: false)
+            )
+            loops.append(loop(day: day, hour: 18, target: 100, insulinSensitivity: 50))
+        }
+        let result = report(loops: loops, glucose: glucose, carbs: carbs, boluses: boluses)
+        #expect(result.crSampleCount == 0)
+        #expect(result.crRows[0].rationale == .insufficientEvidence)
+    }
+
     @Test("Unannounced-meal stretches without logged carbs are ignored for CR")
     func crIgnoresUnloggedMeals() {
         let result = report(
-            loops: [loop(day: 6, hour: 18, glucose: 180, sensitivityRatio: 1.2)],
+            loops: [loop(day: 6, hour: 18, sensitivityRatio: 1.2)],
             boluses: [TherapyBolus(date: date(day: 6, hour: 18), amount: 1.2, isSMB: true, isExternal: false)]
         )
         #expect(result.crRows[0].sampleCount == 0)
@@ -367,7 +567,6 @@ import Testing
             loop(
                 day: 7,
                 hour: index % 24,
-                glucose: 130,
                 enactedRate: 2.0,
                 reason: "Basal ratio: 1.0; setting 2.0U/hr."
             )
@@ -398,7 +597,7 @@ import Testing
         var carbs: [TherapyCarbEntry] = []
         for day in 2 ... 9 {
             let correction = date(day: day, hour: 8)
-            loops.append(loop(day: day, hour: 8, glucose: 150, cob: 0, sensitivityRatio: 1.0))
+            loops.append(loop(day: day, hour: 8, cob: 0, sensitivityRatio: 1.0))
             boluses.append(TherapyBolus(date: correction, amount: 1, isSMB: true, isExternal: false))
             glucose.append(TherapyGlucoseReading(date: correction, glucose: 150))
             glucose.append(TherapyGlucoseReading(date: correction.addingTimeInterval(3.5 * 3600), glucose: 100))
@@ -408,10 +607,8 @@ import Testing
                 loop(
                     day: day,
                     hour: 18,
-                    glucose: 100,
                     target: 100,
-                    insulinSensitivity: 50,
-                    carbRatio: 8
+                    insulinSensitivity: 50
                 )
             )
             carbs.append(TherapyCarbEntry(date: meal, carbs: 60, isFPU: false))

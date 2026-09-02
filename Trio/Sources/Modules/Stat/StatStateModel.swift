@@ -86,6 +86,7 @@ extension Stat {
 
         var therapyReport: TherapySettingsReport?
         var isTherapyReportLoading = false
+        @ObservationIgnored var therapyReportTask: Task<Void, Never>?
 
         // Fetching Contexts
         let viewContext = CoreDataStack.shared.persistentContainer.viewContext

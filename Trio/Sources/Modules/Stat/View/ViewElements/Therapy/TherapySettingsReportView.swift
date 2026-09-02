@@ -44,6 +44,7 @@ struct TherapySettingsReportView: View {
                     .frame(maxWidth: .infinity, minHeight: 120)
             } else if let report = state.therapyReport {
                 warningBanner(report)
+                evidenceCard(report)
                 tddRatioCard(report)
                 familyCard(
                     title: String(localized: "Basal"),
@@ -108,6 +109,30 @@ struct TherapySettingsReportView: View {
         .background(
             RoundedRectangle(cornerRadius: Stat.RootView.Constants.cornerRadius)
                 .fill(Color.orange.opacity(0.12))
+        )
+    }
+
+    @ViewBuilder private func evidenceCard(_ report: TherapySettingsReport) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Evidence Used")
+                .font(.headline)
+            if let earliest = report.earliestSample, let latest = report.latestSample {
+                Text(
+                    "\(earliest.formatted(date: .abbreviated, time: .shortened)) to \(latest.formatted(date: .abbreviated, time: .shortened))"
+                )
+                .font(.subheadline)
+            }
+            Text(
+                "\(report.usableLoopCount) usable loops of \(report.loopCount) in range, \(report.crSampleCount) meals behind the carb ratio rows."
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: Stat.RootView.Constants.cornerRadius)
+                .fill(Color.secondary.opacity(Stat.RootView.Constants.backgroundOpacity))
         )
     }
 
@@ -259,11 +284,11 @@ struct TherapySettingsReportView: View {
         case let .isfObserved(medianISF, medianDelta, medianInsulin, sampleCount):
             let displayISF = state.units == .mmolL ? medianISF.asMmolL : medianISF
             return String(
-                localized: "Median observed ISF = (glucose drop) / insulin from \(sampleCount) carb-free corrections near target (sigmoid ratio ≈ 1): drop \(formattedGlucoseDelta(medianDelta)) after \(medianInsulin.formatted(.number.precision(.fractionLength(2)))) U → \(displayISF.formatted(.number.precision(.fractionLength(1)))) \(state.units.rawValue)/U. High-BG Dynamic ISF values are not used."
+                localized: "Median observed ISF = (glucose drop) / insulin from \(sampleCount) corrections with no carbs and no other bolus in the window, near target (sigmoid ratio ≈ 1): drop \(formattedGlucoseDelta(medianDelta)) after \(medianInsulin.formatted(.number.precision(.fractionLength(2)))) U → \(displayISF.formatted(.number.precision(.fractionLength(1)))) \(state.units.rawValue)/U. High-BG Dynamic ISF values are not used. Temp basal above or below your profile is not subtracted, so treat this as an estimate of bolus effect."
             )
         case let .crObserved(medianCR, medianCarbs, medianInsulin, medianGlucoseDelta, sampleCount):
             return String(
-                localized: "Median observed CR = carbs / (recorded meal insulin + leftover using recorded ISF and 3–4h glucose) from \(sampleCount) isolated meals: \(medianCarbs.formatted(.number.precision(.fractionLength(0)))) g, \(medianInsulin.formatted(.number.precision(.fractionLength(2)))) U, 3–4h change \(formattedGlucoseDelta(medianGlucoseDelta)) → \(medianCR.formatted(.number.precision(.fractionLength(1)))) g/U."
+                localized: "Median observed CR = carbs / (recorded meal insulin + the net 3–4h glucose change converted with the recorded ISF) from \(sampleCount) meals with no other carbs, external dose, or later manual bolus in the window: \(medianCarbs.formatted(.number.precision(.fractionLength(0)))) g, \(medianInsulin.formatted(.number.precision(.fractionLength(2)))) U, 3–4h change \(formattedGlucoseDelta(medianGlucoseDelta)) → \(medianCR.formatted(.number.precision(.fractionLength(1)))) g/U. The change is measured against the pre-meal glucose, so a high or low starting point is not charged to the meal. Temp basal above or below your profile is not subtracted."
             )
         case .insufficientEvidence:
             return String(

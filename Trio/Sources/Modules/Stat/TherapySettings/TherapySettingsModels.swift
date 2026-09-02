@@ -103,7 +103,7 @@ struct TherapySettingsReport: Equatable {
     let lookbackDays: Int
     let loopCount: Int
     let usableLoopCount: Int
-    let mealCount: Int
+    let crSampleCount: Int
     let earliestSample: Date?
     let latestSample: Date?
     let insufficientHistory: Bool
@@ -114,15 +114,14 @@ struct TherapySettingsReport: Equatable {
     let highConfidenceFamilyToChange: TherapySettingFamily?
 }
 
+/// One recorded `OrefDetermination`, reduced to the fields the report treats as evidence.
 struct TherapyLoopSample: Equatable {
     let date: Date
-    let glucose: Decimal?
     let target: Decimal?
     let cob: Decimal
     let enactedRate: Decimal?
     let sensitivityRatio: Decimal?
     let insulinSensitivity: Decimal?
-    let carbRatio: Decimal?
     let reason: String
 }
 

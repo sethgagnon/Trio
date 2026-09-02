@@ -3,7 +3,10 @@ import Foundation
 
 extension Stat.StateModel {
     func setupTherapySettingsReport() {
-        Task {
+        // Toggling the lookback restarts the build; without cancelling the previous one a slower
+        // earlier run could finish last and publish the wrong window.
+        therapyReportTask?.cancel()
+        therapyReportTask = Task {
             await loadTherapySettingsReport()
         }
     }
@@ -12,10 +15,13 @@ extension Stat.StateModel {
         await MainActor.run { isTherapyReportLoading = true }
         do {
             let report = try await buildTherapySettingsReport()
+            try Task.checkCancellation()
             await MainActor.run {
                 therapyReport = report
                 isTherapyReportLoading = false
             }
+        } catch is CancellationError {
+            return
         } catch {
             debug(.default, "\(DebuggingIdentifiers.failed) failed building therapy settings report: \(error)")
             await MainActor.run {
@@ -111,13 +117,11 @@ extension Stat.StateModel {
                 guard let date = determination.deliverAt ?? determination.timestamp else { return nil }
                 return TherapyLoopSample(
                     date: date,
-                    glucose: determination.glucose?.decimalValue,
                     target: determination.currentTarget?.decimalValue,
                     cob: Decimal(determination.cob),
                     enactedRate: determination.rate?.decimalValue,
                     sensitivityRatio: determination.sensitivityRatio?.decimalValue,
                     insulinSensitivity: determination.insulinSensitivity?.decimalValue,
-                    carbRatio: determination.carbRatio?.decimalValue,
                     reason: determination.reason ?? ""
                 )
             }

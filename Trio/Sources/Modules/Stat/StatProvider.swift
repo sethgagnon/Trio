@@ -29,12 +29,18 @@ extension Stat {
         }
 
         var basalIncrement: Decimal {
-            let rates = deviceManager.pumpManager?.supportedBasalRates.filter { $0 > 0 } ?? []
-            guard rates.count >= 2 else {
-                return Decimal(string: "0.05") ?? 0.05
-            }
-            let step = Decimal(rates[1] - rates[0])
-            return step > 0 ? step : (Decimal(string: "0.05") ?? 0.05)
+            let fallback = Decimal(string: "0.05") ?? 0.05
+            let rates = (deviceManager.pumpManager?.supportedBasalRates ?? [])
+                .filter { $0 > 0 }
+                .sorted()
+            guard rates.count >= 2 else { return fallback }
+            // Smallest gap, not the first one: some pumps step finer at low rates than high ones,
+            // and rounding to the coarse step there would move a suggestion off a rate the pump
+            // actually accepts. `algorithmValue` avoids the binary-Double residue that plain
+            // Decimal(Double) leaves behind (0.1 - 0.05 is not exactly 0.05).
+            let gaps = zip(rates.dropFirst(), rates).map { Decimal(algorithmValue: $0 - $1) }
+            guard let step = gaps.filter({ $0 > 0 }).min() else { return fallback }
+            return step.rounded(scale: 4)
         }
     }
 }

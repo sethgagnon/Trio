@@ -36,8 +36,7 @@ enum TherapySettingsAnalyzer {
         let basalRows = makeBasalRows(
             loops: usableLoops,
             profile: input.profile,
-            calendar: input.calendar,
-            medianTddRatio: medianTddRatio
+            calendar: input.calendar
         )
         let isfRows = makeISFRows(
             loops: usableLoops,
@@ -72,7 +71,7 @@ enum TherapySettingsAnalyzer {
             lookbackDays: input.lookbackDays,
             loopCount: loopsInWindow.count,
             usableLoopCount: usableLoops.count,
-            mealCount: crRows.reduce(0) { $0 + $1.sampleCount },
+            crSampleCount: crRows.reduce(0) { $0 + $1.sampleCount },
             earliestSample: earliest,
             latestSample: latest,
             insufficientHistory: insufficientHistory,
@@ -130,13 +129,12 @@ enum TherapySettingsAnalyzer {
     private static func makeBasalRows(
         loops: [TherapyLoopSample],
         profile: TherapyProfileSnapshot,
-        calendar: Calendar,
-        medianTddRatio: Decimal?
+        calendar: Calendar
     ) -> [TherapySettingRow] {
         let slots = basalSlots(profile.basal)
         return slots.map { slot in
             var impliedRates: [Decimal] = []
-            var ratios: [Decimal] = []
+            var slotTddRatios: [Decimal] = []
             for loop in loops {
                 guard loop.cob <= maxCOBForBasalAndISF,
                       let enacted = loop.enactedRate, enacted > 0,
@@ -144,12 +142,14 @@ enum TherapySettingsAnalyzer {
                 else { continue }
                 guard let ratio = basalScaleRatio(from: loop.reason) else { continue }
                 impliedRates.append(enacted / ratio)
-                if let tddRatio = parseBasalTddRatio(from: loop.reason), tddRatio != 1 {
-                    ratios.append(tddRatio)
+                if let tddRatio = parseBasalTddRatio(from: loop.reason) {
+                    slotTddRatios.append(tddRatio)
                 }
             }
             let medianImplied = median(impliedRates)
-            let slotTdd = median(ratios) ?? medianTddRatio
+            // Only this slot's own recorded ratios. Borrowing the window-wide median would
+            // credit Adjust Basal on loops that never recorded a ratio.
+            let slotTdd = median(slotTddRatios)
             return makeRow(
                 family: .basal,
                 startLabel: slot.label,
@@ -260,17 +260,29 @@ enum TherapySettingsAnalyzer {
             else { continue }
 
             let windowEnd = event.date.addingTimeInterval(hours: isfOutcomeEndHours)
+            // Carb-free means carb-free: a hypo treatment or an FPU entry raises glucose, shrinks the
+            // measured drop, and would understate ISF — the direction that doses more insulin.
             let carbsInWindow = carbs.contains {
-                !$0.isFPU && $0.carbs >= minMealCarbs
+                $0.carbs > 0
                     && $0.date >= event.date.addingTimeInterval(-30 * 60)
                     && $0.date <= windowEnd
             }
             guard !carbsInWindow else { continue }
 
+            let dosingWindowEnd = event.date.addingTimeInterval(30 * 60)
             let insulin = insulinEvents
-                .filter { $0.date >= event.date && $0.date <= event.date.addingTimeInterval(30 * 60) }
+                .filter { $0.date >= event.date && $0.date <= dosingWindowEnd }
                 .reduce(Decimal(0)) { $0 + $1.amount }
             guard insulin >= minCorrectionInsulin else { continue }
+
+            // The rationale claims this drop came from this dose, so no other bolus may be acting in
+            // the window: earlier insulin is still active, and later insulin lands inside the drop
+            // while staying out of the divisor. Either way the stated evidence would be untrue.
+            let otherInsulin = insulinEvents.contains {
+                ($0.date > dosingWindowEnd && $0.date <= windowEnd)
+                    || ($0.date >= event.date.addingTimeInterval(hours: -isfOutcomeEndHours) && $0.date < event.date)
+            }
+            guard !otherInsulin else { continue }
 
             guard let startGlucose = glucoseAround(
                 start: event.date.addingTimeInterval(-10 * 60),
@@ -324,31 +336,35 @@ enum TherapySettingsAnalyzer {
                     end: meal.date.addingTimeInterval(10 * 60),
                     in: glucose
                 ) else { continue }
-                guard let loop = nearestLoop(to: meal.date, in: loops),
-                      let target = loop.target, target > 0
-                else { continue }
+                guard let loop = nearestLoop(to: meal.date, in: loops) else { continue }
 
+                let mealStart = meal.date.addingTimeInterval(-15 * 60)
                 let mealEnd = meal.date.addingTimeInterval(hours: mealOutcomeEndHours)
-                let laterUserBolus = boluses.reduce(Decimal(0)) { sum, bolus in
-                    guard !bolus.isSMB, !bolus.isExternal,
-                          bolus.date > meal.date.addingTimeInterval(15 * 60),
-                          bolus.date <= mealEnd
-                    else { return sum }
-                    return sum + bolus.amount
-                }
-                guard laterUserBolus == 0 else { continue }
+                let bolusesInWindow = boluses.filter { $0.date >= mealStart && $0.date <= mealEnd }
 
-                let insulinGiven = boluses.reduce(Decimal(0)) { sum, bolus in
-                    guard !bolus.isExternal,
-                          bolus.date >= meal.date.addingTimeInterval(-15 * 60),
-                          bolus.date <= mealEnd
-                    else { return sum }
-                    return sum + bolus.amount
+                let laterUserBolus = bolusesInWindow.contains { bolus in
+                    !bolus.isSMB && !bolus.isExternal
+                        && bolus.date > meal.date.addingTimeInterval(15 * 60)
+                }
+                guard !laterUserBolus else { continue }
+
+                // An external dose moved glucose but its amount is not trustworthy insulin
+                // accounting, so the meal cannot be reduced to carbs per recorded unit.
+                let externalInsulin = bolusesInWindow.contains { $0.isExternal && $0.amount > 0 }
+                guard !externalInsulin else { continue }
+
+                let insulinGiven = bolusesInWindow.reduce(Decimal(0)) { sum, bolus in
+                    bolus.isExternal ? sum : sum + bolus.amount
                 }
                 guard insulinGiven > 0 else { continue }
 
+                // What the meal needed is what was given, corrected by the *net* glucose change:
+                //   Δglucose = (carbs / CR - insulin) × ISF  ⇒  carbs / CR = insulin + Δglucose / ISF
+                // The starting glucose, not the target, is the reference. Measuring the residual
+                // against target instead charges the meal for a pre-meal excess it did not cause,
+                // which understates the carb ratio and asks for more insulin per gram.
                 let leftoverInsulin: Decimal
-                let gap = outcome - target
+                let gap = outcome - startGlucose
                 if gap == 0 {
                     leftoverInsulin = 0
                 } else {
@@ -481,8 +497,10 @@ enum TherapySettingsAnalyzer {
         return sorted[mid]
     }
 
+    /// Rejects loops whose reason marks them as not a real dosing decision. Per-field requirements
+    /// belong to each family's own evidence gate: requiring an enacted rate here would also drop the
+    /// loop as ISF and carb-ratio context, where only the recorded ratio, target, and ISF matter.
     private static func isUsableLoop(_ sample: TherapyLoopSample) -> Bool {
-        guard sample.enactedRate != nil, sample.glucose != nil else { return false }
         let reason = sample.reason.lowercased()
         if reason.contains("calibrat") { return false }
         if reason.contains("???") { return false }
@@ -551,15 +569,22 @@ enum TherapySettingsAnalyzer {
         from carbs: [TherapyCarbEntry],
         excludedWindows: [DateInterval]
     ) -> [TherapyCarbEntry] {
-        let meals = carbs
-            .filter { !$0.isFPU && $0.carbs >= minMealCarbs && !isExcluded($0.date, windows: excludedWindows) }
-            .sorted { $0.date < $1.date }
+        let allCarbEntries = carbs.filter { $0.carbs > 0 }.sorted { $0.date < $1.date }
         let isolation = TimeInterval(NSDecimalNumber(decimal: mealIsolationHours * 3600).doubleValue)
-        return meals.filter { meal in
-            !meals.contains { other in
-                other.date > meal.date && other.date < meal.date.addingTimeInterval(isolation)
+        // Isolation has to look backwards too. A forward-only check keeps the last meal of a
+        // cluster, whose window still carries the previous meal's carbs and insulin. Indices rather
+        // than dates identify the meal, so a second entry at the same instant (an FPU split off the
+        // same meal, which keeps absorbing past the 4h outcome) still counts as contamination.
+        return allCarbEntries.enumerated().filter { index, meal in
+            guard !meal.isFPU, meal.carbs >= minMealCarbs,
+                  !isExcluded(meal.date, windows: excludedWindows)
+            else { return false }
+            return !allCarbEntries.enumerated().contains { otherIndex, other in
+                otherIndex != index
+                    && other.date > meal.date.addingTimeInterval(-isolation)
+                    && other.date < meal.date.addingTimeInterval(isolation)
             }
-        }
+        }.map(\.element)
     }
 
     private static func glucoseAround(
