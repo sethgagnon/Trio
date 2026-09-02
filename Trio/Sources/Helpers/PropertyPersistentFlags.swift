@@ -22,6 +22,13 @@ final class PropertyPersistentFlags {
 
     @PersistedProperty(key: "lastCleanupDate") var lastCleanupDate: Date?
 
+    /// First launch of a build that keeps override runs for `OverrideRunStored.historyRetentionDays`.
+    ///
+    /// Earlier builds purged them after three days, so this is the boundary before which nobody can
+    /// say which loops ran under an override. Anything reasoning over recorded loops has to treat
+    /// the window before it as unverifiable instead of assuming the current policy always applied.
+    @PersistedProperty(key: "overrideRunHistoryExtendedAt") var overrideRunHistoryExtendedAt: Date?
+
     // TODO: This flag can be deleted in March 2027. Check the commit for other places to cleanup.
     @PersistedProperty(key: "hasSeenFatProteinOrderChange") var hasSeenFatProteinOrderChange: Bool?
 

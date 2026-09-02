@@ -204,9 +204,22 @@ extension Stat.StateModel {
                 carbs: snapshot.carbs,
                 boluses: snapshot.boluses,
                 excludedWindows: snapshot.windows,
-                overrideHistoryRetentionDays: OverrideRunStored.historyRetentionDays
+                overrideHistoryStart: Self.overrideHistoryStart(now: now)
             )
         )
+    }
+
+    /// The earliest instant whose override history can be trusted.
+    ///
+    /// Bounded by both the purge policy and the upgrade that introduced it: records older than the
+    /// retention window are gone, and records from before this build first ran were already dropped
+    /// by the previous three-day purge. The later of the two is the honest boundary.
+    private static func overrideHistoryStart(now: Date) -> Date? {
+        guard let extendedAt = PropertyPersistentFlags.shared.overrideRunHistoryExtendedAt else {
+            return nil
+        }
+        let retained = now.addingTimeInterval(-Double(OverrideRunStored.historyRetentionDays) * 86_400)
+        return max(extendedAt, retained)
     }
 
     /// `DateInterval(start:end:)` traps on a reversed interval, so a stored run whose end

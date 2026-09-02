@@ -66,7 +66,7 @@ import Testing
                 carbs: carbs,
                 boluses: boluses,
                 excludedWindows: excludedWindows,
-                overrideHistoryRetentionDays: OverrideRunStored.historyRetentionDays
+                overrideHistoryStart: date(day: 1, hour: 0)
             )
         )
     }
@@ -223,7 +223,7 @@ import Testing
                 carbs: [],
                 boluses: [],
                 excludedWindows: [],
-                overrideHistoryRetentionDays: OverrideRunStored.historyRetentionDays
+                overrideHistoryStart: date(day: 1, hour: 0)
             )
         )
         #expect(result.medianTddRatio == Decimal(string: "1.2"))
@@ -850,6 +850,23 @@ import Testing
         #expect(result.crRows[0].rationale == .insufficientEvidence)
     }
 
+    private func report(lookbackDays: Int, overrideHistoryStart: Date?) -> TherapySettingsReport {
+        TherapySettingsAnalyzer.generate(
+            from: TherapySettingsInput(
+                lookbackDays: lookbackDays,
+                now: date(day: 15, hour: 12),
+                calendar: calendar,
+                profile: profile,
+                loops: [],
+                glucose: [],
+                carbs: [],
+                boluses: [],
+                excludedWindows: [],
+                overrideHistoryStart: overrideHistoryStart
+            )
+        )
+    }
+
     @Test("Completed override runs are kept at least as long as the longest report lookback")
     func overrideRetentionCoversEveryLookback() {
         // The report can only exclude overridden loops while their run records still exist. If this
@@ -863,42 +880,36 @@ import Testing
         #expect(OverrideRunStored.historyRetentionDays >= longestLookback)
 
         for lookback in TherapyLookback.allCases {
-            let result = TherapySettingsAnalyzer.generate(
-                from: TherapySettingsInput(
-                    lookbackDays: lookback.rawValue,
-                    now: date(day: 15, hour: 12),
-                    calendar: calendar,
-                    profile: profile,
-                    loops: [],
-                    glucose: [],
-                    carbs: [],
-                    boluses: [],
-                    excludedWindows: [],
-                    overrideHistoryRetentionDays: OverrideRunStored.historyRetentionDays
-                )
-            )
+            let result = report(lookbackDays: lookback.rawValue, overrideHistoryStart: date(day: 1, hour: 0))
             #expect(result.overrideHistoryIncomplete == false)
         }
     }
 
-    @Test("A lookback outrunning override retention is disclosed rather than hidden")
+    @Test("A window opening before override history began is disclosed rather than hidden")
     func reportDisclosesOverrideRetentionGap() {
-        let result = TherapySettingsAnalyzer.generate(
-            from: TherapySettingsInput(
-                lookbackDays: 14,
-                now: date(day: 15, hour: 12),
-                calendar: calendar,
-                profile: profile,
-                loops: [],
-                glucose: [],
-                carbs: [],
-                boluses: [],
-                excludedWindows: [],
-                overrideHistoryRetentionDays: 3
-            )
-        )
+        // The state a freshly upgraded install is in: retention now says 90 days, but the records
+        // only start at the upgrade. Judging coverage by the policy would call the fortnight before
+        // it verified, so the boundary is compared against the window instead.
+        let upgraded = date(day: 14, hour: 12)
+        let result = report(lookbackDays: 14, overrideHistoryStart: upgraded)
         #expect(result.overrideHistoryIncomplete)
-        #expect(result.overrideHistoryRetentionDays == 3)
+        #expect(result.overrideHistoryStart == upgraded)
+    }
+
+    @Test("Override coverage stops being flagged once the window sits inside recorded history")
+    func overrideGapClosesAsHistoryAccumulates() {
+        // The same install a fortnight later: the flag has to clear on its own, or the caveat
+        // becomes permanent furniture that readers learn to ignore.
+        let upgraded = date(day: 2, hour: 12)
+        #expect(report(lookbackDays: 14, overrideHistoryStart: upgraded).overrideHistoryIncomplete)
+        #expect(report(lookbackDays: 7, overrideHistoryStart: upgraded).overrideHistoryIncomplete == false)
+    }
+
+    @Test("Unknown override history is treated as no coverage, never as full coverage")
+    func unknownOverrideHistoryIsTreatedAsIncomplete() {
+        // Failing open here would silently present unverifiable loops as verified, so absence of a
+        // boundary has to read as the pessimistic case.
+        #expect(report(lookbackDays: 7, overrideHistoryStart: nil).overrideHistoryIncomplete)
     }
 
     @Test("Rows in one family keep distinct identities across identical labels")
