@@ -124,11 +124,9 @@ struct TherapySettingsReportView: View {
             .foregroundStyle(.secondary)
 
             if report.overrideHistoryIncomplete {
-                Text(
-                    "Override history is kept for only \(report.overrideHistoryRetentionDays) days, so loops run under an override earlier in this window cannot be identified and are counted as ordinary evidence."
-                )
-                .font(.footnote)
-                .foregroundStyle(.orange)
+                Text(overrideHistoryCaveat(report))
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
             }
         }
         .padding()
@@ -136,6 +134,24 @@ struct TherapySettingsReportView: View {
         .background(
             RoundedRectangle(cornerRadius: Stat.RootView.Constants.cornerRadius)
                 .fill(Color.secondary.opacity(Stat.RootView.Constants.backgroundOpacity))
+        )
+    }
+
+    /// Explains how far back overridden loops can be recognised, and that the gap closes by itself.
+    ///
+    /// Trio kept override runs for three days until the version that added this report, so a lookback
+    /// opened soon after upgrading reaches into a span where the records were already deleted. Those
+    /// loops are counted as ordinary evidence because nothing remains to mark them otherwise.
+    private func overrideHistoryCaveat(_ report: TherapySettingsReport) -> String {
+        guard let start = report.overrideHistoryStart else {
+            return String(
+                localized: "Trio cannot tell how far back override history reaches, so loops run under an override may be counted as ordinary evidence.",
+                comment: "Override history caveat when the start of override history is unknown"
+            )
+        }
+        return String(
+            localized: "Override history only reaches back to \(start.formatted(date: .abbreviated, time: .shortened)); earlier builds kept it for three days. Loops run under an override before then cannot be identified and are counted as ordinary evidence. This resolves once \(report.lookbackDays) days have passed since the update.",
+            comment: "Override history caveat naming the date from which overridden loops can be excluded"
         )
     }
 
@@ -351,12 +367,7 @@ struct TherapySettingsReportView: View {
             )
         }
         if report.overrideHistoryIncomplete {
-            lines.append(
-                String(
-                    localized: "Override history is kept for only \(report.overrideHistoryRetentionDays) days, so earlier overridden loops are counted as ordinary evidence.",
-                    comment: "Override retention caveat in the copyable therapy report"
-                )
-            )
+            lines.append(overrideHistoryCaveat(report))
         }
         if report.insufficientHistory {
             lines.append(

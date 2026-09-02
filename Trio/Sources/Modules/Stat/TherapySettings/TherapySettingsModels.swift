@@ -113,10 +113,11 @@ struct TherapySettingsReport: Equatable {
     let earliestSample: Date?
     let latestSample: Date?
     let insufficientHistory: Bool
-    /// The lookback reaches further back than override run history is kept, so some adjusted
-    /// loops in this window cannot be identified and excluded.
+    /// The lookback starts before override history was being kept, so some adjusted loops in this
+    /// window cannot be identified and excluded.
     let overrideHistoryIncomplete: Bool
-    let overrideHistoryRetentionDays: Int
+    /// The earliest instant whose override history can be trusted, or nil if that is unknown.
+    let overrideHistoryStart: Date?
     let medianTddRatio: Decimal?
     let basalRows: [TherapySettingRow]
     let isfRows: [TherapySettingRow]
@@ -176,7 +177,13 @@ struct TherapySettingsInput {
     let carbs: [TherapyCarbEntry]
     let boluses: [TherapyBolus]
     let excludedWindows: [DateInterval]
-    /// How many days of override history the store actually keeps. Supplied by the caller so the
-    /// report discloses the real purge policy rather than a copy of it that can drift.
-    let overrideHistoryRetentionDays: Int
+    /// The earliest instant for which override history is actually on disk, not the retention
+    /// policy in days.
+    ///
+    /// The two differ for a long time after an upgrade. Trio kept override runs for three days
+    /// before `OverrideRunStored.historyRetentionDays`, so a store can be governed by a 90-day
+    /// policy while holding three days of records, and a policy-based check would call a
+    /// fortnight of unverifiable loops fully verified. Nil means the caller cannot establish the
+    /// boundary, which the report treats as no coverage rather than full coverage.
+    let overrideHistoryStart: Date?
 }
