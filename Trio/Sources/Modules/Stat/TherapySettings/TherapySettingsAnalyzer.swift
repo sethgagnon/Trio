@@ -38,11 +38,6 @@ enum TherapySettingsAnalyzer {
         let carbs = input.carbs.filter { $0.date >= windowStart && $0.date <= input.now }
         let boluses = input.boluses.filter { $0.date >= windowStart && $0.date <= input.now }
 
-        let basalRows = makeBasalRows(
-            loops: usableLoops,
-            profile: input.profile,
-            calendar: input.calendar
-        )
         let isfRows = makeISFRows(
             loops: usableLoops,
             glucose: glucose,
@@ -70,7 +65,7 @@ enum TherapySettingsAnalyzer {
         }()
         let insufficientHistory = spanDays < Double(minHistoryDays) || usableLoops.count < minUsableLoops
 
-        let familyToChange = preferredHighConfidenceFamily(basal: basalRows, isf: isfRows, cr: crRows)
+        let familyToChange = preferredHighConfidenceFamily(isf: isfRows, cr: crRows)
 
         return TherapySettingsReport(
             lookbackDays: input.lookbackDays,
@@ -80,10 +75,11 @@ enum TherapySettingsAnalyzer {
             earliestSample: earliest,
             latestSample: latest,
             insufficientHistory: insufficientHistory,
+            basalUnavailable: .requestedRateIsNotBasalNeed,
             overrideHistoryIncomplete: input.overrideHistoryStart.map { $0 > windowStart } ?? true,
             overrideHistoryStart: input.overrideHistoryStart,
             medianTddRatio: medianTddRatio,
-            basalRows: basalRows,
+            basalRows: [],
             isfRows: isfRows,
             crRows: crRows,
             highConfidenceFamilyToChange: insufficientHistory ? nil : familyToChange
@@ -95,76 +91,6 @@ enum TherapySettingsAnalyzer {
         parseLabeledRatio("Basal ratio:", from: reason)
     }
 
-    /// Parses `Autosens ratio: 1.15` from an oref determination reason string.
-    static func parseAutosensRatio(from reason: String) -> Decimal? {
-        parseLabeledRatio("Autosens ratio:", from: reason)
-    }
-
-    /// Recorded scale applied to the enacted basal, or `nil` when the loop cannot be used.
-    ///
-    /// - `Basal ratio:` present and numeric: Adjust Basal was on; divide it out.
-    /// - `Basal ratio:` present but unreadable: skip (do not assume 1).
-    /// - `Dynamic ISF: On` and no basal-ratio token: Adjust Basal was off; enacted is not TDD-scaled.
-    /// - Otherwise use a recorded `Autosens ratio:` (non-dynamic loops scale basal by autosens).
-    /// - No recorded scale at all: skip.
-    static func basalScaleRatio(from reason: String) -> Decimal? {
-        if let tddRatio = parseBasalTddRatio(from: reason) {
-            return tddRatio
-        }
-        if reason.contains("Basal ratio:") {
-            return nil
-        }
-        if reason.contains("Dynamic ISF: On") {
-            return 1
-        }
-        return parseAutosensRatio(from: reason)
-    }
-
-    /// What one loop's recorded temp-basal decision says about the profile rate.
-    enum BasalEvidence: Equatable {
-        /// oref recorded that the rate it wanted equalled the profile rate for that time.
-        case matchesProfile
-        /// A rate oref asked for, on the scaled axis: divide the recorded scale back out.
-        case requested(Decimal)
-        /// A deliberate zero temp: oref wanted no basal at all.
-        case zeroTemp
-    }
-
-    /// Reads the decision out of a determination, or `nil` when it recorded no usable one.
-    ///
-    /// Only reading `rate > 0` throws away every decision that means "the profile rate is fine or
-    /// too high": with `skipNeutralTemps` on, agreement is written as `rate 0, duration 0` or as no
-    /// rate at all, and a real zero temp is `rate 0, duration > 0`. What survives is the set of
-    /// loops that wanted *more* basal, which is why this has to read all four shapes.
-    static func basalEvidence(reason: String, rate: Decimal?, duration: Decimal?) -> BasalEvidence? {
-        // `profile.currentBasal` is the unscaled schedule rate (`ProfileGenerator`), so when oref
-        // records that its request matched it, the recorded fact is already about the profile
-        // value and no scale may be divided out.
-        if reason.contains("same as profile rate") || reason.contains("neutral temp basal of") {
-            return .matchesProfile
-        }
-        // "no temp required" keeps the running temp and never writes `rate`; the rate it wanted
-        // survives only in the reason text.
-        if reason.contains("no temp required") {
-            guard let requested = parseRequestedRate(from: reason) else { return nil }
-            return .requested(requested)
-        }
-        guard let rate else { return nil }
-        if rate > 0 { return .requested(rate) }
-        // Zero with a duration is a deliberate zero temp. Zero without one is a bare cancel whose
-        // intended rate was never recorded.
-        if let duration, duration > 0 { return .zeroTemp }
-        return nil
-    }
-
-    /// Parses the `req 1.25U/hr` token oref writes in its "no temp required" reason.
-    static func parseRequestedRate(from reason: String) -> Decimal? {
-        guard let range = reason.range(of: "req ") else { return nil }
-        let token = reason[range.upperBound...].prefix(while: { $0.isNumber || $0 == "." })
-        guard !token.isEmpty, let value = Decimal(string: String(token)), value >= 0 else { return nil }
-        return value
-    }
-
     private static func parseLabeledRatio(_ label: String, from reason: String) -> Decimal? {
         guard let range = reason.range(of: label) else { return nil }
         let remainder = reason[range.upperBound...]
@@ -174,75 +100,6 @@ enum TherapySettingsAnalyzer {
             return nil
         }
         return value
-    }
-
-    // MARK: - Basal
-
-    private static func makeBasalRows(
-        loops: [TherapyLoopSample],
-        profile: TherapyProfileSnapshot,
-        calendar: Calendar
-    ) -> [TherapySettingRow] {
-        let slots = basalSlots(profile.basal)
-        return slots.map { slot in
-            var impliedRates: [Decimal] = []
-            var slotTddRatios: [Decimal] = []
-            for loop in loops {
-                guard loop.cob <= maxCOBForBasalAndISF,
-                      inSlot(loop.date, slot, calendar: calendar),
-                      let evidence = basalEvidence(
-                          reason: loop.reason,
-                          rate: loop.requestedRate,
-                          duration: loop.duration
-                      )
-                else { continue }
-
-                let implied: Decimal
-                switch evidence {
-                case .matchesProfile:
-                    implied = slot.value
-                case .zeroTemp:
-                    implied = 0
-                case let .requested(rate):
-                    guard let ratio = basalScaleRatio(from: loop.reason) else { continue }
-                    implied = rate / ratio
-                }
-                impliedRates.append(implied)
-                if let tddRatio = parseBasalTddRatio(from: loop.reason) {
-                    slotTddRatios.append(tddRatio)
-                }
-            }
-            let medianImplied = median(impliedRates)
-            // Only this slot's own ratios, and only when every counted loop recorded one:
-            // a median over a subset would be credited to samples that never had a ratio.
-            let slotTdd = slotTddRatios.count == impliedRates.count ? median(slotTddRatios) : nil
-            return makeRow(
-                family: .basal,
-                startLabel: slot.label,
-                startMinutes: slot.startMinutes,
-                current: slot.value,
-                implied: medianImplied,
-                increment: profile.basalIncrement,
-                minValue: profile.basalIncrement,
-                sampleCount: impliedRates.count,
-                highThreshold: 48,
-                mediumThreshold: 18,
-                lowThreshold: 6,
-                unit: String(localized: "U/hr", comment: "Basal unit")
-            ) { implied, roundsToCurrent in
-                if roundsToCurrent {
-                    if let slotTdd, slotTdd != 1 {
-                        return .basalMatchesTddAdjusted(medianTddRatio: slotTdd, sampleCount: impliedRates.count)
-                    }
-                    return .roundedToUnchanged(medianImplied: implied)
-                }
-                return .basalImplied(
-                    medianRate: implied,
-                    medianTddRatio: slotTdd,
-                    sampleCount: impliedRates.count
-                )
-            }
-        }
     }
 
     // MARK: - ISF
@@ -562,12 +419,10 @@ enum TherapySettingsAnalyzer {
     }
 
     static func preferredHighConfidenceFamily(
-        basal: [TherapySettingRow],
         isf: [TherapySettingRow],
         cr: [TherapySettingRow]
     ) -> TherapySettingFamily? {
         let families: [(TherapySettingFamily, [TherapySettingRow])] = [
-            (.basal, basal),
             (.isf, isf),
             (.cr, cr)
         ]
@@ -630,12 +485,6 @@ enum TherapySettingsAnalyzer {
         return minutes >= slot.startMinutes && minutes < slot.endMinutes
     }
 
-    private static func basalSlots(_ entries: [BasalProfileEntry]) -> [Slot] {
-        let sorted = entries.sorted { $0.minutes < $1.minutes }
-        return zipSlots(
-            sorted.map { (label: displayStart($0.start), minutes: $0.minutes, value: $0.rate) }
-        )
-    }
 
     private static func isfSlots(_ entries: [InsulinSensitivityEntry]) -> [Slot] {
         let sorted = entries.sorted { $0.offset < $1.offset }

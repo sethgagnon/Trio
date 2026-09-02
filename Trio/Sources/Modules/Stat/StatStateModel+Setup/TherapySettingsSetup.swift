@@ -120,8 +120,6 @@ extension Stat.StateModel {
                 return TherapyLoopSample(
                     date: date,
                     cob: Decimal(determination.cob),
-                    requestedRate: determination.rate?.decimalValue,
-                    duration: determination.duration?.decimalValue,
                     sensitivityRatio: determination.sensitivityRatio?.decimalValue,
                     insulinSensitivity: determination.insulinSensitivity?.decimalValue,
                     reason: determination.reason ?? ""
