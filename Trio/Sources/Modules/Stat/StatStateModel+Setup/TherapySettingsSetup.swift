@@ -116,6 +116,8 @@ extension Stat.StateModel {
                     cob: Decimal(determination.cob),
                     enactedRate: determination.rate?.decimalValue,
                     sensitivityRatio: determination.sensitivityRatio?.decimalValue,
+                    insulinSensitivity: determination.insulinSensitivity?.decimalValue,
+                    carbRatio: determination.carbRatio?.decimalValue,
                     reason: determination.reason ?? ""
                 )
             }

@@ -29,21 +29,48 @@ import Testing
     private func loop(
         day: Int,
         hour: Int,
+        minute: Int = 0,
         glucose: Decimal = 100,
-        target: Decimal = 100,
+        target: Decimal? = 100,
         cob: Decimal = 0,
         enactedRate: Decimal = 1.0,
-        sensitivityRatio: Decimal = 1.0,
+        sensitivityRatio: Decimal? = 1.0,
+        insulinSensitivity: Decimal? = 40,
+        carbRatio: Decimal? = 8,
         reason: String = "Autosens ratio: 1, ISF: 40→40"
     ) -> TherapyLoopSample {
         TherapyLoopSample(
-            date: date(day: day, hour: hour),
+            date: date(day: day, hour: hour, minute: minute),
             glucose: glucose,
             target: target,
             cob: cob,
             enactedRate: enactedRate,
             sensitivityRatio: sensitivityRatio,
+            insulinSensitivity: insulinSensitivity,
+            carbRatio: carbRatio,
             reason: reason
+        )
+    }
+
+    private func report(
+        loops: [TherapyLoopSample],
+        glucose: [TherapyGlucoseReading] = [],
+        carbs: [TherapyCarbEntry] = [],
+        boluses: [TherapyBolus] = [],
+        excludedWindows: [DateInterval] = []
+    ) -> TherapySettingsReport {
+        TherapySettingsAnalyzer.generate(
+            from: TherapySettingsInput(
+                lookbackDays: 14,
+                now: date(day: 15, hour: 12),
+                calendar: calendar,
+                profile: profile,
+                loops: loops,
+                glucose: glucose,
+                carbs: carbs,
+                boluses: boluses,
+                excludedWindows: excludedWindows
+            )
         )
     }
 
@@ -52,9 +79,31 @@ import Testing
             "Autosens ratio: 1.15, ISF: 40→35, Dynamic ISF: On, Sigmoid function, AF: 0.5, Basal ratio: 1.12; setting 1.2U/hr."
         #expect(TherapySettingsAnalyzer.parseBasalTddRatio(from: reason) == Decimal(string: "1.12"))
         #expect(TherapySettingsAnalyzer.parseBasalTddRatio(from: "no ratio here") == nil)
+        #expect(TherapySettingsAnalyzer.parseAutosensRatio(from: reason) == Decimal(string: "1.15"))
     }
 
-    @Test("Basal suggestion ignores Adjust Basal TDD ratio already covering the extra") func basalNotCopiedFromTddRatio() {
+    @Test("Basal scale uses only a ratio the loop actually recorded")
+    func basalScaleRatioFromRecordedReason() {
+        #expect(
+            TherapySettingsAnalyzer.basalScaleRatio(
+                from: "Dynamic ISF: On, Sigmoid function, Basal ratio: 1.2; setting 1.2U/hr."
+            ) == Decimal(string: "1.2")
+        )
+        #expect(
+            TherapySettingsAnalyzer.basalScaleRatio(
+                from: "Autosens ratio: 1.15, Dynamic ISF: On, Sigmoid function"
+            ) == 1
+        )
+        #expect(
+            TherapySettingsAnalyzer.basalScaleRatio(from: "Autosens ratio: 1.2, ISF: 40→33")
+                == Decimal(string: "1.2")
+        )
+        #expect(TherapySettingsAnalyzer.basalScaleRatio(from: "Basal ratio: ; setting 1.32U/hr.") == nil)
+        #expect(TherapySettingsAnalyzer.basalScaleRatio(from: "no recorded scale") == nil)
+    }
+
+    @Test("Basal uses enacted / recorded TDD ratio and does not copy Adjust Basal into the profile")
+    func basalNotCopiedFromTddRatio() {
         let loops = (1 ... 60).map { index in
             loop(
                 day: 2 + (index / 24),
@@ -63,32 +112,21 @@ import Testing
                 reason: "Dynamic ISF: On, Sigmoid function, Basal ratio: 1.2; setting 1.2U/hr."
             )
         }
-        let report = TherapySettingsAnalyzer.generate(
-            from: TherapySettingsInput(
-                lookbackDays: 14,
-                now: date(day: 15, hour: 12),
-                calendar: calendar,
-                profile: profile,
-                loops: loops,
-                glucose: [],
-                carbs: [],
-                boluses: [],
-                excludedWindows: []
-            )
-        )
-        #expect(report.medianTddRatio == Decimal(string: "1.2"))
-        #expect(report.basalRows.count == 1)
-        #expect(report.basalRows[0].current == 1)
-        #expect(report.basalRows[0].suggested == 1)
-        #expect(report.basalRows[0].hasChange == false)
-        if case .basalCoveredByAdjustBasal = report.basalRows[0].rationale {
-            // expected
+        let result = report(loops: loops)
+        #expect(result.medianTddRatio == Decimal(string: "1.2"))
+        #expect(result.basalRows[0].current == 1)
+        #expect(result.basalRows[0].suggested == 1)
+        #expect(result.basalRows[0].hasChange == false)
+        if case let .basalMatchesTddAdjusted(ratio, count) = result.basalRows[0].rationale {
+            #expect(ratio == Decimal(string: "1.2"))
+            #expect(count == 60)
         } else {
-            Issue.record("Expected Adjust Basal coverage rationale, got \(report.basalRows[0].rationale)")
+            Issue.record("Expected TDD-adjusted match rationale, got \(result.basalRows[0].rationale)")
         }
     }
 
-    @Test("Basal suggestion raises a slot when extra remains after TDD ratio") func basalRaisesAfterTddResidual() {
+    @Test("Basal suggestion is the median enacted/TDD-ratio, not a half-step guess")
+    func basalRaisesFromRecordedRates() {
         let loops = (0 ..< 50).map { index in
             loop(
                 day: 3,
@@ -97,59 +135,51 @@ import Testing
                 reason: "Dynamic ISF: On, Sigmoid function, Basal ratio: 1.2; setting 1.32U/hr."
             )
         }
-        let report = TherapySettingsAnalyzer.generate(
-            from: TherapySettingsInput(
-                lookbackDays: 14,
-                now: date(day: 15, hour: 12),
-                calendar: calendar,
-                profile: profile,
-                loops: loops,
-                glucose: [],
-                carbs: [],
-                boluses: [],
-                excludedWindows: []
-            )
-        )
-        // residual = 1.32 / (1.0 * 1.2) = 1.10 → halfway +5% → 1.05
-        #expect(report.basalRows[0].suggested == Decimal(string: "1.05"))
-        #expect(report.basalRows[0].hasChange)
-        if case let .basalExtraAfterTdd(residual, usedTdd) = report.basalRows[0].rationale {
-            #expect(residual == Decimal(string: "1.1"))
-            #expect(usedTdd)
+        let result = report(loops: loops)
+        // 1.32 / 1.2 = 1.10 — the recorded implied profile rate
+        #expect(result.basalRows[0].suggested == Decimal(string: "1.10"))
+        if case let .basalImplied(medianRate, tddRatio, count) = result.basalRows[0].rationale {
+            #expect(medianRate == Decimal(string: "1.1"))
+            #expect(tddRatio == Decimal(string: "1.2"))
+            #expect(count == 50)
         } else {
-            Issue.record("Expected extra-after-TDD rationale, got \(report.basalRows[0].rationale)")
+            Issue.record("Expected implied basal rationale, got \(result.basalRows[0].rationale)")
         }
     }
 
-    @Test("ISF ignores high-BG loops where sigmoid ratio is far from 1") func isfIgnoresHighGlucoseSigmoid() {
-        let highBG = (0 ..< 30).map { index in
+    @Test("Unreadable Basal ratio token is skipped rather than treated as 1")
+    func basalSkipsBrokenTddRatioToken() {
+        let loops = (0 ..< 40).map { index in
             loop(
                 day: 4,
-                hour: index % 24,
-                glucose: 180,
-                target: 100,
-                sensitivityRatio: 1.3
+                hour: min(index, 23),
+                enactedRate: 1.32,
+                reason: "Dynamic ISF: On, Sigmoid function, Basal ratio: ; setting 1.32U/hr."
             )
         }
-        let report = TherapySettingsAnalyzer.generate(
-            from: TherapySettingsInput(
-                lookbackDays: 14,
-                now: date(day: 15, hour: 12),
-                calendar: calendar,
-                profile: profile,
-                loops: highBG,
-                glucose: [],
-                carbs: [],
-                boluses: [],
-                excludedWindows: []
-            )
-        )
-        #expect(report.isfRows[0].sampleCount == 0)
-        #expect(report.isfRows[0].suggested == 40)
-        #expect(report.isfRows[0].rationale == .insufficientSamples)
+        let result = report(loops: loops)
+        #expect(result.basalRows[0].sampleCount == 0)
+        #expect(result.basalRows[0].suggested == 1)
+        #expect(result.basalRows[0].rationale == .insufficientEvidence)
     }
 
-    @Test("ISF at target with a high residual recommends a stronger profile ISF") func isfNearTargetHigh() {
+    @Test("Loops with no recorded basal scale are skipped")
+    func basalSkipsMissingScale() {
+        let loops = (0 ..< 40).map { index in
+            loop(
+                day: 4,
+                hour: min(index, 23),
+                enactedRate: 1.32,
+                reason: "setting 1.32U/hr."
+            )
+        }
+        let result = report(loops: loops)
+        #expect(result.basalRows[0].sampleCount == 0)
+        #expect(result.basalRows[0].suggested == 1)
+    }
+
+    @Test("Sitting high with no correction insulin is not an ISF recommendation")
+    func isfDoesNotInventFromGlucoseAlone() {
         let loops = (0 ..< 30).map { index in
             loop(
                 day: 5,
@@ -159,109 +189,180 @@ import Testing
                 sensitivityRatio: 1.0
             )
         }
-        let report = TherapySettingsAnalyzer.generate(
-            from: TherapySettingsInput(
-                lookbackDays: 14,
-                now: date(day: 15, hour: 12),
-                calendar: calendar,
-                profile: profile,
-                loops: loops,
-                glucose: [],
-                carbs: [],
-                boluses: [],
-                excludedWindows: []
+        let result = report(loops: loops)
+        #expect(result.isfRows[0].sampleCount == 0)
+        #expect(result.isfRows[0].suggested == 40)
+        #expect(result.isfRows[0].rationale == .insufficientEvidence)
+    }
+
+    @Test("High-BG sigmoid loops are not used as profile ISF evidence")
+    func isfIgnoresHighGlucoseSigmoid() {
+        let loops = (0 ..< 8).map { day in
+            loop(
+                day: 4 + day,
+                hour: 8,
+                glucose: 180,
+                target: 100,
+                sensitivityRatio: 1.3
             )
-        )
-        // +15 mg/dL / 400 = 3.75% stronger → 40 * 0.9625 = 38.5 → 39
-        #expect(report.isfRows[0].suggested == 39)
-        #expect(report.isfRows[0].hasChange)
-        if case let .isfHighNearTarget(delta) = report.isfRows[0].rationale {
-            #expect(delta == 15)
+        }
+        let boluses = (0 ..< 8).map { day in
+            TherapyBolus(date: date(day: 4 + day, hour: 8), amount: 1, isSMB: true, isExternal: false)
+        }
+        var glucose: [TherapyGlucoseReading] = []
+        for day in 4 ..< 12 {
+            let start = date(day: day, hour: 8)
+            glucose.append(TherapyGlucoseReading(date: start, glucose: 180))
+            glucose.append(TherapyGlucoseReading(date: start.addingTimeInterval(3.5 * 3600), glucose: 120))
+        }
+        let result = report(loops: loops, glucose: glucose, boluses: boluses)
+        #expect(result.isfRows[0].sampleCount == 0)
+        #expect(result.isfRows[0].rationale == .insufficientEvidence)
+    }
+
+    @Test("ISF suggestion is glucose drop / recorded insulin from carb-free near-target corrections")
+    func isfFromRecordedCorrections() {
+        var loops: [TherapyLoopSample] = []
+        var glucose: [TherapyGlucoseReading] = []
+        var boluses: [TherapyBolus] = []
+        for day in 2 ... 9 {
+            let start = date(day: day, hour: 8)
+            loops.append(
+                loop(day: day, hour: 8, glucose: 150, target: 100, cob: 0, sensitivityRatio: 1.0)
+            )
+            boluses.append(TherapyBolus(date: start, amount: 1, isSMB: true, isExternal: false))
+            glucose.append(TherapyGlucoseReading(date: start, glucose: 150))
+            glucose.append(TherapyGlucoseReading(date: start.addingTimeInterval(3.5 * 3600), glucose: 100))
+        }
+        let result = report(loops: loops, glucose: glucose, boluses: boluses)
+        // (150-100) / 1.0 U = 50
+        #expect(result.isfRows[0].suggested == 50)
+        if case let .isfObserved(medianISF, medianDelta, medianInsulin, count) = result.isfRows[0].rationale {
+            #expect(medianISF == 50)
+            #expect(medianDelta == 50)
+            #expect(medianInsulin == 1)
+            #expect(count == 8)
         } else {
-            Issue.record("Expected near-target high rationale, got \(report.isfRows[0].rationale)")
+            Issue.record("Expected observed ISF rationale, got \(result.isfRows[0].rationale)")
         }
     }
 
-    @Test("CR 8 recommends 7.8 when meals finish 10 mg/dL higher at 3-4 hours") func carbRatioBecomesMoreAggressive() {
+    @Test("ISF does not assume a missing sigmoid ratio is 1")
+    func isfRequiresRecordedSensitivityRatio() {
+        var loops: [TherapyLoopSample] = []
+        var glucose: [TherapyGlucoseReading] = []
+        var boluses: [TherapyBolus] = []
+        for day in 2 ... 9 {
+            let start = date(day: day, hour: 8)
+            loops.append(
+                loop(day: day, hour: 8, glucose: 150, target: 100, cob: 0, sensitivityRatio: nil)
+            )
+            boluses.append(TherapyBolus(date: start, amount: 1, isSMB: true, isExternal: false))
+            glucose.append(TherapyGlucoseReading(date: start, glucose: 150))
+            glucose.append(TherapyGlucoseReading(date: start.addingTimeInterval(3.5 * 3600), glucose: 100))
+        }
+        let result = report(loops: loops, glucose: glucose, boluses: boluses)
+        #expect(result.isfRows[0].sampleCount == 0)
+        #expect(result.isfRows[0].suggested == 40)
+        #expect(result.isfRows[0].rationale == .insufficientEvidence)
+    }
+
+    @Test("CR 8 recommends 7.8 from recorded carbs, insulin, 4h glucose, and recorded ISF")
+    func carbRatioFromRecordedMealInsulin() {
         var carbs: [TherapyCarbEntry] = []
         var glucose: [TherapyGlucoseReading] = []
         var loops: [TherapyLoopSample] = []
-        // 8 isolated dinners on consecutive days
+        var boluses: [TherapyBolus] = []
         for day in 2 ... 9 {
             let meal = date(day: day, hour: 18)
             carbs.append(TherapyCarbEntry(date: meal, carbs: 60, isFPU: false))
             glucose.append(TherapyGlucoseReading(date: meal, glucose: 100))
-            glucose.append(
-                TherapyGlucoseReading(
-                    date: meal.addingTimeInterval(3.5 * 3600),
-                    glucose: 110
-                )
-            )
+            glucose.append(TherapyGlucoseReading(date: meal.addingTimeInterval(3.5 * 3600), glucose: 110))
             loops.append(
                 loop(
                     day: day,
                     hour: 18,
                     glucose: 100,
-                    enactedRate: 1.0,
-                    reason: "Autosens ratio: 1; CR: 8"
+                    target: 100,
+                    insulinSensitivity: 50,
+                    carbRatio: 8
                 )
             )
+            boluses.append(TherapyBolus(date: meal, amount: Decimal(string: "7.5") ?? 7.5, isSMB: false, isExternal: false))
         }
-        let report = TherapySettingsAnalyzer.generate(
-            from: TherapySettingsInput(
-                lookbackDays: 14,
-                now: date(day: 15, hour: 12),
-                calendar: calendar,
-                profile: profile,
-                loops: loops,
-                glucose: glucose,
-                carbs: carbs,
-                boluses: [],
-                excludedWindows: []
-            )
-        )
-        #expect(report.crRows[0].current == 8)
-        #expect(report.crRows[0].suggested == Decimal(string: "7.8"))
-        #expect(report.crRows[0].hasChange)
-        if case let .crHighAfterMeal(delta, _, mealCount) = report.crRows[0].rationale {
-            #expect(delta == 10)
-            #expect(mealCount == 8)
+        let result = report(loops: loops, glucose: glucose, carbs: carbs, boluses: boluses)
+        // leftover = 10 mg/dL / 50 ISF = 0.2 U; CR = 60 / (7.5 + 0.2) ≈ 7.79 → 7.8
+        #expect(result.crRows[0].current == 8)
+        #expect(result.crRows[0].suggested == Decimal(string: "7.8"))
+        if case let .crObserved(medianCR, medianCarbs, _, _, count) = result.crRows[0].rationale {
+            #expect(medianCarbs == 60)
+            #expect(count == 8)
+            #expect(abs(medianCR - Decimal(string: "7.7922")!) < Decimal(string: "0.01")!)
         } else {
-            Issue.record("Expected high-after-meal rationale, got \(report.crRows[0].rationale)")
+            Issue.record("Expected observed CR rationale, got \(result.crRows[0].rationale)")
         }
     }
 
-    @Test("Unannounced-meal stretches without logged carbs are ignored for CR") func crIgnoresUnloggedMeals() {
-        let loops = (0 ..< 20).map { index in
-            loop(
-                day: 6,
-                hour: index % 24,
-                glucose: 180,
-                cob: 0,
-                sensitivityRatio: 1.2,
-                reason: "UAM"
-            )
-        }
-        let report = TherapySettingsAnalyzer.generate(
-            from: TherapySettingsInput(
-                lookbackDays: 14,
-                now: date(day: 15, hour: 12),
-                calendar: calendar,
-                profile: profile,
-                loops: loops,
-                glucose: [],
-                carbs: [],
-                boluses: [
-                    TherapyBolus(date: date(day: 6, hour: 18), amount: 1.2, isSMB: true, isExternal: false)
-                ],
-                excludedWindows: []
-            )
+    @Test("Meals missing 4h glucose or insulin are skipped rather than filled in")
+    func crSkipsIncompleteMeals() {
+        let meal = date(day: 3, hour: 18)
+        let result = report(
+            loops: [loop(day: 3, hour: 18, insulinSensitivity: 40)],
+            glucose: [TherapyGlucoseReading(date: meal, glucose: 100)],
+            carbs: [TherapyCarbEntry(date: meal, carbs: 60, isFPU: false)],
+            boluses: []
         )
-        #expect(report.crRows[0].sampleCount == 0)
-        #expect(report.crRows[0].suggested == 8)
+        #expect(result.crRows[0].sampleCount == 0)
+        #expect(result.crRows[0].suggested == 8)
+        #expect(result.crRows[0].rationale == .insufficientEvidence)
     }
 
-    @Test("Loops inside override windows are dropped") func excludesOverrideWindows() {
+    @Test("CR does not substitute 100 for a missing recorded target")
+    func crRequiresRecordedTarget() {
+        let meal = date(day: 3, hour: 18)
+        let result = report(
+            loops: [loop(day: 3, hour: 18, target: nil, insulinSensitivity: 50)],
+            glucose: [
+                TherapyGlucoseReading(date: meal, glucose: 100),
+                TherapyGlucoseReading(date: meal.addingTimeInterval(3.5 * 3600), glucose: 110)
+            ],
+            carbs: [TherapyCarbEntry(date: meal, carbs: 60, isFPU: false)],
+            boluses: [TherapyBolus(date: meal, amount: Decimal(string: "7.5") ?? 7.5, isSMB: false, isExternal: false)]
+        )
+        #expect(result.crRows[0].sampleCount == 0)
+        #expect(result.crRows[0].suggested == 8)
+        #expect(result.crRows[0].rationale == .insufficientEvidence)
+    }
+
+    @Test("CR leftover is skipped when recorded ISF is missing")
+    func crRequiresRecordedISFWhenGlucoseRemains() {
+        let meal = date(day: 3, hour: 18)
+        let result = report(
+            loops: [loop(day: 3, hour: 18, target: 100, insulinSensitivity: nil)],
+            glucose: [
+                TherapyGlucoseReading(date: meal, glucose: 100),
+                TherapyGlucoseReading(date: meal.addingTimeInterval(3.5 * 3600), glucose: 110)
+            ],
+            carbs: [TherapyCarbEntry(date: meal, carbs: 60, isFPU: false)],
+            boluses: [TherapyBolus(date: meal, amount: Decimal(string: "7.5") ?? 7.5, isSMB: false, isExternal: false)]
+        )
+        #expect(result.crRows[0].sampleCount == 0)
+        #expect(result.crRows[0].suggested == 8)
+        #expect(result.crRows[0].rationale == .insufficientEvidence)
+    }
+
+    @Test("Unannounced-meal stretches without logged carbs are ignored for CR")
+    func crIgnoresUnloggedMeals() {
+        let result = report(
+            loops: [loop(day: 6, hour: 18, glucose: 180, sensitivityRatio: 1.2)],
+            boluses: [TherapyBolus(date: date(day: 6, hour: 18), amount: 1.2, isSMB: true, isExternal: false)]
+        )
+        #expect(result.crRows[0].sampleCount == 0)
+        #expect(result.crRows[0].suggested == 8)
+    }
+
+    @Test("Loops inside override windows are dropped")
+    func excludesOverrideWindows() {
         let loops = (0 ..< 20).map { index in
             loop(
                 day: 7,
@@ -272,69 +373,65 @@ import Testing
             )
         }
         let window = DateInterval(start: date(day: 7, hour: 0), end: date(day: 8, hour: 0))
-        let report = TherapySettingsAnalyzer.generate(
-            from: TherapySettingsInput(
-                lookbackDays: 14,
-                now: date(day: 15, hour: 12),
-                calendar: calendar,
-                profile: profile,
-                loops: loops,
-                glucose: [],
-                carbs: [],
-                boluses: [],
-                excludedWindows: [window]
-            )
-        )
-        #expect(report.usableLoopCount == 0)
-        #expect(report.basalRows[0].sampleCount == 0)
+        let result = report(loops: loops, excludedWindows: [window])
+        #expect(result.usableLoopCount == 0)
+        #expect(result.basalRows[0].sampleCount == 0)
     }
 
-    @Test("High-confidence family prefers basal, then ISF, then CR") func isolationOrder() {
-        // Enough near-target ISF samples for a high-confidence ISF change, and 8 meals for CR,
-        // but no extra basal residual. ISF should be selected over CR.
+    @Test("High-confidence family prefers basal, then ISF, then CR")
+    func isolationOrder() {
         var loops: [TherapyLoopSample] = []
         for day in 1 ... 10 {
-            for hour in 0 ..< 24 {
+            for hour in 0 ..< 24 where hour != 8 && hour != 18 {
                 loops.append(
                     loop(
                         day: day,
                         hour: hour,
-                        glucose: 120,
-                        target: 100,
-                        sensitivityRatio: 1.0,
                         reason: "Basal ratio: 1.0; setting 1.0U/hr."
                     )
                 )
             }
         }
-        var carbs: [TherapyCarbEntry] = []
+
         var glucose: [TherapyGlucoseReading] = []
+        var boluses: [TherapyBolus] = []
+        var carbs: [TherapyCarbEntry] = []
         for day in 2 ... 9 {
+            let correction = date(day: day, hour: 8)
+            loops.append(loop(day: day, hour: 8, glucose: 150, cob: 0, sensitivityRatio: 1.0))
+            boluses.append(TherapyBolus(date: correction, amount: 1, isSMB: true, isExternal: false))
+            glucose.append(TherapyGlucoseReading(date: correction, glucose: 150))
+            glucose.append(TherapyGlucoseReading(date: correction.addingTimeInterval(3.5 * 3600), glucose: 100))
+
             let meal = date(day: day, hour: 18)
-            carbs.append(TherapyCarbEntry(date: meal, carbs: 50, isFPU: false))
-            glucose.append(TherapyGlucoseReading(date: meal, glucose: 100))
-            glucose.append(TherapyGlucoseReading(date: meal.addingTimeInterval(3.5 * 3600), glucose: 130))
-        }
-        let report = TherapySettingsAnalyzer.generate(
-            from: TherapySettingsInput(
-                lookbackDays: 14,
-                now: date(day: 15, hour: 12),
-                calendar: calendar,
-                profile: profile,
-                loops: loops,
-                glucose: glucose,
-                carbs: carbs,
-                boluses: [],
-                excludedWindows: []
+            loops.append(
+                loop(
+                    day: day,
+                    hour: 18,
+                    glucose: 100,
+                    target: 100,
+                    insulinSensitivity: 50,
+                    carbRatio: 8
+                )
             )
-        )
-        #expect(report.isfRows[0].confidence == .high)
-        #expect(report.isfRows[0].hasChange)
-        #expect(report.crRows[0].hasChange)
-        #expect(report.highConfidenceFamilyToChange == .isf)
+            carbs.append(TherapyCarbEntry(date: meal, carbs: 60, isFPU: false))
+            glucose.append(TherapyGlucoseReading(date: meal, glucose: 100))
+            glucose.append(TherapyGlucoseReading(date: meal.addingTimeInterval(3.5 * 3600), glucose: 110))
+            boluses.append(
+                TherapyBolus(date: meal, amount: Decimal(string: "7.5") ?? 7.5, isSMB: false, isExternal: false)
+            )
+        }
+
+        let result = report(loops: loops, glucose: glucose, carbs: carbs, boluses: boluses)
+        #expect(result.basalRows[0].hasChange == false)
+        #expect(result.isfRows[0].hasChange)
+        #expect(result.isfRows[0].confidence == .high)
+        #expect(result.crRows[0].hasChange)
+        #expect(result.highConfidenceFamilyToChange == .isf)
     }
 
-    @Test("Round to increment never recommends a 0 basal") func roundBasalIncrement() {
+    @Test("Round to increment never recommends a 0 basal")
+    func roundBasalIncrement() {
         #expect(
             TherapySettingsAnalyzer.roundToIncrement(Decimal(string: "1.03") ?? 0, increment: 0.05)
                 == Decimal(string: "1.05")

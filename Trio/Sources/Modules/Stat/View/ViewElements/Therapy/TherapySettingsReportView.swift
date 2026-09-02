@@ -80,7 +80,7 @@ struct TherapySettingsReportView: View {
             Text("Report only")
                 .font(.headline)
             Text(
-                "These numbers are suggestions from your local history. Trio will not change your profile or pump. Change only one setting family at a time."
+                "Each suggestion is the median of values computed from complete recorded events (glucose, insulin, carbs, and loop fields). Missing fields are skipped, not filled in. Trio will not change your profile or pump. Change only one setting family at a time."
             )
             .font(.footnote)
             .foregroundStyle(.secondary)
@@ -127,7 +127,7 @@ struct TherapySettingsReportView: View {
                 .foregroundStyle(.secondary)
             } else {
                 Text(
-                    "No basal TDD ratio was found on determinations in this window. Basal rows treat the ratio as 1.0 (Adjust Basal off, or older history without a stored ratio)."
+                    "No TDD basal ratio was parsed in this window. Each loop is included only when a recorded scale is present: a numeric Basal ratio, Dynamic ISF on with Adjust Basal off (enacted rate is unscaled), or a numeric Autosens ratio on non-dynamic loops. Missing or unreadable ratios are skipped."
                 )
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -243,47 +243,36 @@ struct TherapySettingsReportView: View {
 
     private func rationaleText(_ rationale: TherapyRationale) -> String {
         switch rationale {
-        case let .basalExtraAfterTdd(medianResidual, usedTddRatio):
-            let residual = medianResidual.formatted(.number.precision(.fractionLength(2)))
-            if usedTddRatio {
+        case let .basalImplied(medianRate, medianTddRatio, sampleCount):
+            if let medianTddRatio {
                 return String(
-                    localized: "Median enacted basal was \(residual)× scheduled × TDD ratio. The loop still wanted more after Adjust Basal."
+                    localized: "Median enacted temp basal ÷ recorded TDD basal ratio (\(medianTddRatio.formatted(.number.precision(.fractionLength(2))))) was \(medianRate.formatted(.number.precision(.fractionLength(2)))) U/hr across \(sampleCount) loops with COB ≤ 10 g."
                 )
             }
             return String(
-                localized: "Median enacted basal was \(residual)× scheduled. TDD ratio was not on these determinations."
+                localized: "Median implied profile basal (enacted temp basal ÷ the scale recorded on those determinations) was \(medianRate.formatted(.number.precision(.fractionLength(2)))) U/hr across \(sampleCount) loops with COB ≤ 10 g."
             )
-        case let .basalCoveredByAdjustBasal(medianTddRatio):
-            let percent = ((medianTddRatio - 1) as NSNumber)
+        case let .basalMatchesTddAdjusted(medianTddRatio, sampleCount):
             return String(
-                localized: "Adjust Basal is already covering a TDD ratio of \(medianTddRatio.formatted(.number.precision(.fractionLength(2)))) (\(percentFormatter.string(from: percent) ?? "0%")). Do not copy that into the profile."
+                localized: "After dividing by the recorded TDD basal ratio (\(medianTddRatio.formatted(.number.precision(.fractionLength(2))))), \(sampleCount) loops match the current profile. Adjust Basal is already covering that ratio; it is not copied into the basal schedule."
             )
-        case let .basalTooHigh(medianResidual, _):
+        case let .isfObserved(medianISF, medianDelta, medianInsulin, sampleCount):
+            let displayISF = state.units == .mmolL ? medianISF.asMmolL : medianISF
             return String(
-                localized: "Median enacted basal was \(medianResidual.formatted(.number.precision(.fractionLength(2))))× scheduled after Adjust Basal. The loop wanted less in this window."
+                localized: "Median observed ISF = (glucose drop) / insulin from \(sampleCount) carb-free corrections near target (sigmoid ratio ≈ 1): drop \(formattedGlucoseDelta(medianDelta)) after \(medianInsulin.formatted(.number.precision(.fractionLength(2)))) U → \(displayISF.formatted(.number.precision(.fractionLength(1)))) \(state.units.rawValue)/U. High-BG Dynamic ISF values are not used."
             )
-        case let .isfHighNearTarget(medianDelta):
+        case let .crObserved(medianCR, medianCarbs, medianInsulin, medianGlucoseDelta, sampleCount):
             return String(
-                localized: "Near-target loops (sigmoid ratio ≈ 1) sat a median \(formattedGlucoseDelta(medianDelta)) above target. Profile ISF at target looks too weak. High-BG ISF is Adjustment Factor / Autosens Max — do not paste Calculated Sensitivity."
+                localized: "Median observed CR = carbs / (recorded meal insulin + leftover using recorded ISF and 3–4h glucose) from \(sampleCount) isolated meals: \(medianCarbs.formatted(.number.precision(.fractionLength(0)))) g, \(medianInsulin.formatted(.number.precision(.fractionLength(2)))) U, 3–4h change \(formattedGlucoseDelta(medianGlucoseDelta)) → \(medianCR.formatted(.number.precision(.fractionLength(1)))) g/U."
             )
-        case let .isfLowNearTarget(medianDelta):
+        case .insufficientEvidence:
             return String(
-                localized: "Near-target loops (sigmoid ratio ≈ 1) sat a median \(formattedGlucoseDelta(abs(medianDelta))) below target. Profile ISF at target looks too strong."
+                localized: "Not enough complete recorded events in this slot. No value was inferred."
             )
-        case let .crHighAfterMeal(medianDelta, extraSmb, mealCount):
+        case let .roundedToUnchanged(medianImplied):
             return String(
-                localized: "After \(mealCount) isolated meals, glucose was a median \(formattedGlucoseDelta(medianDelta)) higher at 3–4h, with \(extraSmb.formatted(.number.precision(.fractionLength(1)))) U extra SMBs. A smaller g/U (more aggressive CR) is suggested."
+                localized: "Median from recorded events is \(medianImplied.formatted(.number.precision(.fractionLength(2)))), which rounds to the current setting."
             )
-        case let .crLowAfterMeal(medianDelta, extraSmb, mealCount):
-            return String(
-                localized: "After \(mealCount) isolated meals, glucose was a median \(formattedGlucoseDelta(abs(medianDelta))) lower at 3–4h, with \(extraSmb.formatted(.number.precision(.fractionLength(1)))) U extra SMBs. A larger g/U (weaker CR) is suggested."
-            )
-        case .insufficientSamples:
-            return String(localized: "Not enough isolated samples in this slot to recommend a change.")
-        case .roundedToUnchanged:
-            return String(localized: "The indicated move rounded back to the current pump/profile step.")
-        case .noConsistentSignal:
-            return String(localized: "No consistent residual in this slot.")
         }
     }
 
@@ -296,8 +285,7 @@ struct TherapySettingsReportView: View {
     private func summaryText(_ report: TherapySettingsReport) -> String {
         var lines: [String] = [
             "Trio therapy settings report (\(report.lookbackDays) days)",
-            "Report only — Trio will not change your profile or pump.",
-            "Do not paste live Dynamic ISF / Calculated Sensitivity into profile ISF."
+            "Each suggestion is the median of values computed from complete recorded events. Missing fields are skipped."
         ]
         if let ratio = report.medianTddRatio {
             lines.append(

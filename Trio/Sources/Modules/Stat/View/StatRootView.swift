@@ -434,7 +434,7 @@ extension Stat {
 
             HStack {
                 Image(systemName: "info.circle.fill").foregroundStyle(Color.primary)
-                Text("Suggestions use local loop, glucose, meal, and insulin history. Nothing is written to your profile or pump.")
+                Text("Suggestions are medians of complete recorded events. Incomplete samples are skipped, not filled in.")
                     .foregroundStyle(Color.secondary)
             }.font(.footnote)
         }

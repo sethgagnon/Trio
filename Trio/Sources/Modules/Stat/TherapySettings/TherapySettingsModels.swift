@@ -1,6 +1,5 @@
 import Foundation
 
-/// How far back the therapy-settings report looks.
 enum TherapyLookback: Int, CaseIterable, Identifiable {
     case seven = 7
     case fourteen = 14
@@ -69,18 +68,20 @@ enum TherapyConfidence: String, Comparable {
     }
 }
 
-/// Structured reason for a suggested profile tweak. Localized in the view.
+/// Evidence behind a row. Every associated value is computed from recorded history.
 enum TherapyRationale: Equatable {
-    case basalExtraAfterTdd(medianResidual: Decimal, usedTddRatio: Bool)
-    case basalCoveredByAdjustBasal(medianTddRatio: Decimal)
-    case basalTooHigh(medianResidual: Decimal, usedTddRatio: Bool)
-    case isfHighNearTarget(medianDelta: Decimal)
-    case isfLowNearTarget(medianDelta: Decimal)
-    case crHighAfterMeal(medianDelta: Decimal, extraSmb: Decimal, mealCount: Int)
-    case crLowAfterMeal(medianDelta: Decimal, extraSmb: Decimal, mealCount: Int)
-    case insufficientSamples
-    case roundedToUnchanged
-    case noConsistentSignal
+    case basalImplied(medianRate: Decimal, medianTddRatio: Decimal?, sampleCount: Int)
+    case basalMatchesTddAdjusted(medianTddRatio: Decimal, sampleCount: Int)
+    case isfObserved(medianISF: Decimal, medianDelta: Decimal, medianInsulin: Decimal, sampleCount: Int)
+    case crObserved(
+        medianCR: Decimal,
+        medianCarbs: Decimal,
+        medianInsulin: Decimal,
+        medianGlucoseDelta: Decimal,
+        sampleCount: Int
+    )
+    case insufficientEvidence
+    case roundedToUnchanged(medianImplied: Decimal)
 }
 
 struct TherapySettingRow: Identifiable, Equatable {
@@ -89,7 +90,6 @@ struct TherapySettingRow: Identifiable, Equatable {
     let startLabel: String
     let current: Decimal
     let suggested: Decimal
-    /// Signed fraction, e.g. 0.05 = 5% higher. For ISF/CR, negative means a smaller (more aggressive) number.
     let percentChange: Decimal
     let sampleCount: Int
     let confidence: TherapyConfidence
@@ -107,12 +107,10 @@ struct TherapySettingsReport: Equatable {
     let earliestSample: Date?
     let latestSample: Date?
     let insufficientHistory: Bool
-    /// Median basal TDD ratio parsed from determinations (`Basal ratio:` in the reason string).
     let medianTddRatio: Decimal?
     let basalRows: [TherapySettingRow]
     let isfRows: [TherapySettingRow]
     let crRows: [TherapySettingRow]
-    /// Isolation order: basal, then ISF, then CR. Nil when no family has a high-confidence change.
     let highConfidenceFamilyToChange: TherapySettingFamily?
 }
 
@@ -123,6 +121,8 @@ struct TherapyLoopSample: Equatable {
     let cob: Decimal
     let enactedRate: Decimal?
     let sensitivityRatio: Decimal?
+    let insulinSensitivity: Decimal?
+    let carbRatio: Decimal?
     let reason: String
 }
 
