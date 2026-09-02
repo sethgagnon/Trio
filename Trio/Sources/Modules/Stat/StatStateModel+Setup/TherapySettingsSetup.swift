@@ -131,7 +131,13 @@ extension Stat.StateModel {
             }
             let carbs = ((carbResults as? [CarbEntryStored]) ?? []).compactMap { entry -> TherapyCarbEntry? in
                 guard let date = entry.date else { return nil }
-                return TherapyCarbEntry(date: date, carbs: Decimal(entry.carbs), isFPU: entry.isFPU)
+                // `carbs` is a Core Data Double; Decimal(Double) carries binary residue into the
+                // ratio, so use the repo's JSON-style conversion.
+                return TherapyCarbEntry(
+                    date: date,
+                    carbs: Decimal(algorithmValue: entry.carbs),
+                    isFPU: entry.isFPU
+                )
             }
             let boluses = ((pumpResults as? [PumpEventStored]) ?? []).compactMap { event -> TherapyBolus? in
                 guard let date = event.timestamp, let bolus = event.bolus else { return nil }
@@ -145,12 +151,10 @@ extension Stat.StateModel {
 
             var windows: [DateInterval] = []
             windows.append(contentsOf: ((overrideRunResults as? [OverrideRunStored]) ?? []).compactMap { run in
-                guard let startDate = run.startDate else { return nil }
-                return DateInterval(start: startDate, end: run.endDate ?? now)
+                Self.exclusionWindow(from: run.startDate, to: run.endDate ?? now)
             })
             windows.append(contentsOf: ((tempTargetRunResults as? [TempTargetRunStored]) ?? []).compactMap { run in
-                guard let startDate = run.startDate else { return nil }
-                return DateInterval(start: startDate, end: run.endDate ?? now)
+                Self.exclusionWindow(from: run.startDate, to: run.endDate ?? now)
             })
             for override in (activeOverrideResults as? [OverrideStored]) ?? [] {
                 guard override.enabled, let startDate = override.date else { continue }
@@ -159,7 +163,9 @@ extension Stat.StateModel {
                 let endDate = startDate.addingTimeInterval(
                     TimeInterval(NSDecimalNumber(decimal: durationMinutes * 60).doubleValue)
                 )
-                windows.append(DateInterval(start: startDate, end: max(endDate, now)))
+                if let window = Self.exclusionWindow(from: startDate, to: max(endDate, now)) {
+                    windows.append(window)
+                }
             }
             for target in (activeTempTargetResults as? [TempTargetStored]) ?? [] {
                 guard target.enabled, let startDate = target.date else { continue }
@@ -167,7 +173,9 @@ extension Stat.StateModel {
                 let endDate = startDate.addingTimeInterval(
                     TimeInterval(NSDecimalNumber(decimal: durationMinutes * 60).doubleValue)
                 )
-                windows.append(DateInterval(start: startDate, end: max(endDate, now)))
+                if let window = Self.exclusionWindow(from: startDate, to: max(endDate, now)) {
+                    windows.append(window)
+                }
             }
             return (loops, glucose, carbs, boluses, windows)
         }
@@ -195,5 +203,13 @@ extension Stat.StateModel {
                 excludedWindows: snapshot.windows
             )
         )
+    }
+
+    /// `DateInterval(start:end:)` traps on a reversed interval, so a stored run whose end
+    /// precedes its start — corrupt data, or a device clock moved backwards — would crash the
+    /// tab rather than lose one exclusion window.
+    private static func exclusionWindow(from start: Date?, to end: Date) -> DateInterval? {
+        guard let start, end >= start else { return nil }
+        return DateInterval(start: start, end: end)
     }
 }

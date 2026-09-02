@@ -88,7 +88,7 @@ struct TherapySettingsReportView: View {
 
             if report.insufficientHistory {
                 Text(
-                    "Fewer than 7 days of usable loops. Treat every row as informational until more closed-loop history accumulates."
+                    "This window holds fewer than \(TherapySettingsAnalyzer.minHistoryDays) days of loop history or fewer than \(TherapySettingsAnalyzer.minUsableLoops) usable loops. Treat every row as informational until more closed-loop history accumulates."
                 )
                 .font(.footnote)
                 .foregroundStyle(.orange)
@@ -317,8 +317,15 @@ struct TherapySettingsReportView: View {
                 "Median TDD basal ratio: \(ratio.formatted(.number.precision(.fractionLength(2)))). Adjust Basal already covers that global ratio."
             )
         }
+        if let earliest = report.earliestSample, let latest = report.latestSample {
+            lines.append(
+                "Evidence window: \(earliest.formatted(date: .abbreviated, time: .shortened)) to \(latest.formatted(date: .abbreviated, time: .shortened)); \(report.usableLoopCount) of \(report.loopCount) loops usable, \(report.crSampleCount) carb ratio meals."
+            )
+        }
         if report.insufficientHistory {
-            lines.append("Insufficient history (<7 days of usable loops). Informational only.")
+            lines.append(
+                "Insufficient history (under \(TherapySettingsAnalyzer.minHistoryDays) days or \(TherapySettingsAnalyzer.minUsableLoops) usable loops). Informational only."
+            )
         } else if let family = report.highConfidenceFamilyToChange {
             lines.append("Change only the high-confidence family: \(family.displayName).")
         } else {
